@@ -56,29 +56,36 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
     zoomRef.current = zoom;
   }, [zoom]);
 
-  // Non-passive wheel handler
+  // Non-passive wheel handler: scroll simples = zoom centrado no cursor
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      if (e.ctrlKey || e.metaKey) {
-        const factor = e.deltaY < 0 ? 1.08 : 0.92;
-        setZoom((prev) => {
-          const next = Math.min(2.5, Math.max(0.35, Number((prev * factor).toFixed(3))));
-          zoomRef.current = next;
-          return next;
-        });
-      } else {
-        setPan((prev) => {
-          const next = {
-            x: prev.x - e.deltaX * 1.1,
-            y: prev.y - e.deltaY * 1.1,
-          };
-          panRef.current = next;
-          return next;
-        });
+      // Scroll simples com a roda do mouse faz Zoom centrado no cursor
+      const factor = e.deltaY < 0 ? 1.1 : 0.9;
+      const currentZoom = zoomRef.current;
+      const newZoom = Math.min(2.8, Math.max(0.3, Number((currentZoom * factor).toFixed(3))));
+
+      const rect = container.getBoundingClientRect();
+      const cx = e.clientX - rect.left - rect.width / 2;
+      const cy = e.clientY - rect.top - rect.height / 2;
+
+      const currentPan = panRef.current;
+      // Reposiciona o pan pra manter o ponto sob o cursor perfeitamente fixo
+      const newPan = {
+        x: cx - (cx - currentPan.x) * (newZoom / currentZoom),
+        y: cy - (cy - currentPan.y) * (newZoom / currentZoom),
+      };
+
+      zoomRef.current = newZoom;
+      panRef.current = newPan;
+      setZoom(newZoom);
+      setPan(newPan);
+
+      if (svgRef.current) {
+        svgRef.current.style.transform = `translate(${Math.round(newPan.x)}px, ${Math.round(newPan.y)}px) scale(${newZoom})`;
       }
     };
 
@@ -88,7 +95,7 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
     };
   }, []);
 
-  // Pointer Drag Handlers with PointerCapture & Direct 60fps DOM transform
+  // Pointer Drag Handlers with PointerCapture & Direct DOM transform
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
     try {
@@ -114,9 +121,9 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
     };
     panRef.current = newPan;
 
-    // Mutate DOM transform directly for buttery 60-120fps with zero React re-render overhead
+    // Mutate DOM transform directly avoiding GPU bitmap blur (uses 2D translate with rounded pixels)
     if (svgRef.current) {
-      svgRef.current.style.transform = `translate3d(${newPan.x}px, ${newPan.y}px, 0) scale(${zoomRef.current})`;
+      svgRef.current.style.transform = `translate(${Math.round(newPan.x)}px, ${Math.round(newPan.y)}px) scale(${zoomRef.current})`;
     }
   };
 
@@ -246,8 +253,14 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
   const handleExportPNG = () => {
     if (!svgRef.current) return;
     try {
-      const svgElement = svgRef.current;
-      const svgString = new XMLSerializer().serializeToString(svgElement);
+      // Clona o SVG, força dimensões numéricas reais e reseta qualquer zoom/pan de tela
+      const clone = svgRef.current.cloneNode(true) as SVGSVGElement;
+      clone.setAttribute("width", String(CANVAS_WIDTH));
+      clone.setAttribute("height", String(CANVAS_HEIGHT));
+      clone.style.transform = "none";
+      clone.removeAttribute("style");
+
+      const svgString = new XMLSerializer().serializeToString(clone);
       const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
       const URL = window.URL || window.webkitURL || window;
       const blobURL = URL.createObjectURL(svgBlob);
@@ -255,7 +268,7 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
       const image = new Image();
       image.onload = () => {
         const canvas = document.createElement("canvas");
-        const scale = 2;
+        const scale = 3; // Ultra alta resolução 3x
         canvas.width = CANVAS_WIDTH * scale;
         canvas.height = CANVAS_HEIGHT * scale;
         const ctx = canvas.getContext("2d");
@@ -321,7 +334,7 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
           size="sm"
           onClick={handleExportPNG}
           className="h-6 sm:h-7 text-[11px] sm:text-xs px-2 sm:px-2.5 font-medium rounded-lg"
-          title="Exportar Imagem PNG"
+          title="Exportar Imagem PNG em Alta Resolução"
         >
           <Download className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1" />
           <span>PNG</span>
@@ -330,7 +343,7 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
 
       <div className="absolute bottom-2.5 left-2.5 sm:bottom-4 sm:left-4 z-20 flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-surface/90 backdrop-blur-xs border border-line/60 px-2.5 py-1 text-[10px] sm:text-[11px] text-ink-faint shadow-xs pointer-events-none">
         <Move className="h-3 w-3 text-accent shrink-0" />
-        <span className="hidden xs:inline">Arraste para navegar · Scroll/Trackpad para mover</span>
+        <span className="hidden xs:inline">Arraste para navegar · Scroll para Zoom</span>
         <span className="xs:hidden">Arraste para mover</span>
       </div>
 
@@ -351,10 +364,11 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
           width="100%"
           height="100%"
           viewBox={`${-HALF_W} ${-HALF_H} ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
+          shapeRendering="geometricPrecision"
+          textRendering="optimizeLegibility"
           style={{
-            transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
+            transform: `translate(${Math.round(pan.x)}px, ${Math.round(pan.y)}px) scale(${zoom})`,
             transformOrigin: "center center",
-            willChange: "transform",
             userSelect: "none",
           }}
           className="overflow-visible w-full h-full pointer-events-none"

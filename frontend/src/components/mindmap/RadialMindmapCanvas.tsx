@@ -75,31 +75,36 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
     zoomRef.current = zoom;
   }, [zoom]);
 
-  // Non-passive Wheel Handler for buttery smooth trackpad and mouse scrolling
+  // Non-passive Wheel Handler: scroll simples = zoom focal centrado no cursor
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      if (e.ctrlKey || e.metaKey) {
-        // Zoom
-        const factor = e.deltaY < 0 ? 1.08 : 0.92;
-        setZoom((prev) => {
-          const next = Math.min(2.5, Math.max(0.35, Number((prev * factor).toFixed(3))));
-          zoomRef.current = next;
-          return next;
-        });
-      } else {
-        // Pan
-        setPan((prev) => {
-          const next = {
-            x: prev.x - e.deltaX * 1.1,
-            y: prev.y - e.deltaY * 1.1,
-          };
-          panRef.current = next;
-          return next;
-        });
+      // Scroll simples com a roda do mouse faz Zoom centrado no cursor
+      const factor = e.deltaY < 0 ? 1.1 : 0.9;
+      const currentZoom = zoomRef.current;
+      const newZoom = Math.min(2.8, Math.max(0.3, Number((currentZoom * factor).toFixed(3))));
+
+      const rect = container.getBoundingClientRect();
+      const cx = e.clientX - rect.left - rect.width / 2;
+      const cy = e.clientY - rect.top - rect.height / 2;
+
+      const currentPan = panRef.current;
+      // Reposiciona o pan pra manter o ponto sob o cursor perfeitamente fixo
+      const newPan = {
+        x: cx - (cx - currentPan.x) * (newZoom / currentZoom),
+        y: cy - (cy - currentPan.y) * (newZoom / currentZoom),
+      };
+
+      zoomRef.current = newZoom;
+      panRef.current = newPan;
+      setZoom(newZoom);
+      setPan(newPan);
+
+      if (svgRef.current) {
+        svgRef.current.style.transform = `translate(${Math.round(newPan.x)}px, ${Math.round(newPan.y)}px) scale(${newZoom})`;
       }
     };
 
@@ -238,9 +243,9 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
     };
     panRef.current = newPan;
 
-    // Direct 60-120fps DOM manipulation without triggering React re-renders during drag
+    // Direct DOM manipulation avoiding GPU bitmap blur (uses 2D translate with rounded pixels)
     if (svgRef.current) {
-      svgRef.current.style.transform = `translate3d(${newPan.x}px, ${newPan.y}px, 0) scale(${zoomRef.current})`;
+      svgRef.current.style.transform = `translate(${Math.round(newPan.x)}px, ${Math.round(newPan.y)}px) scale(${zoomRef.current})`;
     }
   };
 
@@ -262,12 +267,18 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
     setCollapsedNodes((prev) => ({ ...prev, [nodeId]: !prev[nodeId] }));
   };
 
-  // Export as PNG (HD 2x)
+  // Export as PNG (Ultra HD 3x)
   const handleExportPNG = async () => {
     if (!svgRef.current) return;
     try {
-      const svgElement = svgRef.current;
-      const svgString = new XMLSerializer().serializeToString(svgElement);
+      // Clona o SVG, força dimensões numéricas reais e reseta qualquer zoom/pan de tela
+      const clone = svgRef.current.cloneNode(true) as SVGSVGElement;
+      clone.setAttribute("width", String(CANVAS_WIDTH));
+      clone.setAttribute("height", String(CANVAS_HEIGHT));
+      clone.style.transform = "none";
+      clone.removeAttribute("style");
+
+      const svgString = new XMLSerializer().serializeToString(clone);
       const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
       const URL = window.URL || window.webkitURL || window;
       const blobURL = URL.createObjectURL(svgBlob);
@@ -275,7 +286,7 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
       const image = new Image();
       image.onload = () => {
         const canvas = document.createElement("canvas");
-        const scale = 2;
+        const scale = 3; // Ultra alta resolução 3x
         canvas.width = CANVAS_WIDTH * scale;
         canvas.height = CANVAS_HEIGHT * scale;
         const ctx = canvas.getContext("2d");
@@ -303,7 +314,13 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
   // Export as SVG
   const handleExportSVG = () => {
     if (!svgRef.current) return;
-    const svgString = new XMLSerializer().serializeToString(svgRef.current);
+    const clone = svgRef.current.cloneNode(true) as SVGSVGElement;
+    clone.setAttribute("width", String(CANVAS_WIDTH));
+    clone.setAttribute("height", String(CANVAS_HEIGHT));
+    clone.style.transform = "none";
+    clone.removeAttribute("style");
+
+    const svgString = new XMLSerializer().serializeToString(clone);
     const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -378,7 +395,7 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
       {/* Helpful Hint */}
       <div className="absolute bottom-2.5 left-2.5 sm:bottom-4 sm:left-4 z-20 flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-surface/90 backdrop-blur-xs border border-line/60 px-2.5 py-1 text-[10px] sm:text-[11px] text-ink-faint shadow-xs pointer-events-none">
         <Move className="h-3 w-3 text-accent shrink-0" />
-        <span className="hidden xs:inline">Arraste para navegar · Scroll/Trackpad para mover</span>
+        <span className="hidden xs:inline">Arraste para navegar · Scroll para Zoom</span>
         <span className="xs:hidden">Arraste para mover</span>
       </div>
 
@@ -399,10 +416,11 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
           width="100%"
           height="100%"
           viewBox={`${-HALF_W} ${-HALF_H} ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
+          shapeRendering="geometricPrecision"
+          textRendering="optimizeLegibility"
           style={{
-            transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
+            transform: `translate(${Math.round(pan.x)}px, ${Math.round(pan.y)}px) scale(${zoom})`,
             transformOrigin: "center center",
-            willChange: "transform",
             userSelect: "none",
           }}
           className="overflow-visible w-full h-full pointer-events-none"
