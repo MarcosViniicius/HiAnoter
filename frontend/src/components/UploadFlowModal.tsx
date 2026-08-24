@@ -6,6 +6,7 @@ import {
   Cpu,
   FileAudio,
   FileText,
+  Link2,
   Paperclip,
   Plus,
   SlidersHorizontal,
@@ -22,6 +23,13 @@ import { Button } from "./ui/button";
 import { Progress } from "./ui/progress";
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+export interface AttachedNoteItem {
+  id: string;
+  title: string;
+  content: string;
+  type: "text" | "url";
+}
 
 export function UploadFlowModal({
   file,
@@ -47,11 +55,15 @@ export function UploadFlowModal({
 
   const [title, setTitle] = useState(defaultTitle);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [attachedNotes, setAttachedNotes] = useState<AttachedNoteItem[]>([]);
   const [cameraModalOpen, setCameraModalOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [showNoteInput, setShowNoteInput] = useState(false);
-  const [noteTitle, setNoteTitle] = useState("");
-  const [noteContent, setNoteContent] = useState("");
+
+  // Note/Link input form state
+  const [showAddMode, setShowAddMode] = useState<null | "text" | "url">(null);
+  const [inputTitle, setInputTitle] = useState("");
+  const [inputContent, setInputContent] = useState("");
+
   const [quickSettingsOpen, setQuickSettingsOpen] = useState(false);
 
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -116,11 +128,43 @@ export function UploadFlowModal({
     setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleAddNoteOrLink = () => {
+    if (!inputContent.trim()) return;
+    const isUrl = showAddMode === "url";
+    setAttachedNotes((prev) => [
+      ...prev,
+      {
+        id: Math.random().toString(36).substring(2, 9),
+        title: inputTitle.trim() || (isUrl ? inputContent.trim() : `Nota ${prev.length + 1}`),
+        content: inputContent.trim(),
+        type: isUrl ? "url" : "text",
+      },
+    ]);
+    setInputTitle("");
+    setInputContent("");
+  };
+
+  const handleRemoveNote = (id: string) => {
+    setAttachedNotes((prev) => prev.filter((n) => n.id !== id));
+  };
+
   const handleStartUpload = async () => {
     setIsUploading(true);
     setErrorMsg(null);
     setUploadProgress(10);
     setUploadStepText("Enviando arquivo de áudio principal…");
+
+    // Coleta todas as notas + qualquer texto preenchido no input atual
+    const allNotes = [...attachedNotes];
+    if (inputContent.trim()) {
+      const isUrl = showAddMode === "url";
+      allNotes.push({
+        id: "final-uncommitted",
+        title: inputTitle.trim() || (isUrl ? inputContent.trim() : `Nota ${allNotes.length + 1}`),
+        content: inputContent.trim(),
+        type: isUrl ? "url" : "text",
+      });
+    }
 
     try {
       const res = await uploadRecording.mutateAsync({
@@ -142,20 +186,27 @@ export function UploadFlowModal({
         } catch (docErr) {
           console.error("Erro ao enviar lote de documentos", docErr);
         }
-        setUploadProgress(85);
+        setUploadProgress(80);
       }
 
-      // Anexar nota rápida se houver
-      if (noteContent.trim()) {
-        setUploadStepText("Salvando notas contextuais de apoio…");
-        try {
-          await createNote.mutateAsync({
-            recordingId,
-            docType: "text",
-            filename: noteTitle.trim() || "Nota de Contexto",
-            contentText: noteContent.trim(),
-          });
-        } catch {}
+      // Anexar notas e links de apoio
+      if (allNotes.length > 0) {
+        setUploadStepText(`Salvando ${allNotes.length} material(is) e notas de apoio…`);
+        for (const noteItem of allNotes) {
+          try {
+            const isYouTube = noteItem.type === "url" && /youtu\.?be/i.test(noteItem.content);
+            const docType = noteItem.type === "url" ? (isYouTube ? "youtube" : "url") : "text";
+            await createNote.mutateAsync({
+              recordingId,
+              docType,
+              filename: noteItem.title || (noteItem.type === "url" ? noteItem.content : "Nota de Contexto"),
+              contentText: noteItem.content,
+            });
+          } catch (nErr) {
+            console.error("Erro ao anexar nota/link", nErr);
+          }
+        }
+        setUploadProgress(95);
       }
 
       setUploadProgress(100);
@@ -168,6 +219,8 @@ export function UploadFlowModal({
       setErrorMsg(err.message || "Falha ao enviar e processar o áudio.");
     }
   };
+
+  const totalAttachments = attachedFiles.length + attachedNotes.length;
 
   return (
     <div
@@ -187,7 +240,7 @@ export function UploadFlowModal({
               <h2 id="modal-title" className="text-sm sm:text-base font-semibold text-ink">
                 Importar e Configurar Transcrição
               </h2>
-              <p className="text-xs text-ink-soft">Defina título, motor e anexos complementares.</p>
+              <p className="text-xs text-ink-soft">Defina título, motor e materiais complementares.</p>
             </div>
           </div>
           {!isUploading && (
@@ -264,7 +317,7 @@ export function UploadFlowModal({
                   }
                 }}
                 className={cn(
-                  "relative rounded-2xl border p-3.5 space-y-2.5 transition-all",
+                  "relative rounded-2xl border p-3.5 space-y-3 transition-all",
                   isDragging ? "border-accent bg-accent/5 ring-2 ring-accent/30" : "border-line bg-surface",
                 )}
               >
@@ -279,25 +332,27 @@ export function UploadFlowModal({
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-ink">
                     <Paperclip className="h-3.5 w-3.5 text-accent" />
                     <span>Documentos de Apoio & Contexto</span>
-                    {attachedFiles.length > 0 && (
+                    {totalAttachments > 0 && (
                       <span className="rounded-full bg-accent text-white px-2 py-0.5 font-mono text-[10px] font-bold">
-                        {attachedFiles.length}
+                        {totalAttachments}
                       </span>
                     )}
                     <span className="text-[10px] font-normal text-ink-faint">(Opcional)</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
+
+                  {/* Actions buttons */}
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => setCameraModalOpen(true)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface2 px-2 py-1 text-[11px] font-medium text-ink-soft hover:bg-surface2/80"
+                      className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface2 px-2 py-1 text-[11px] font-medium text-ink-soft hover:bg-surface2/80 touch-tap"
                       title="Tirar foto da lousa ou slide com a câmera"
                     >
                       <Camera className="h-3 w-3 text-accent" />
                       <span>Foto</span>
                     </button>
                     <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-line bg-surface2 px-2 py-1 text-[11px] font-medium text-ink-soft hover:bg-surface2/80 touch-tap">
-                      <UploadCloud className="h-3 w-3" />
+                      <UploadCloud className="h-3 w-3 text-accent" />
                       <span>Anexar</span>
                       <input
                         type="file"
@@ -309,30 +364,131 @@ export function UploadFlowModal({
                     </label>
                     <button
                       type="button"
-                      onClick={() => setShowNoteInput((v) => !v)}
+                      onClick={() => setShowAddMode((m) => (m === "url" ? null : "url"))}
                       className={cn(
-                        "inline-flex items-center gap-1 rounded-lg border border-line px-2 py-1 text-[11px] font-medium transition-colors",
-                        showNoteInput || noteContent.trim()
-                          ? "bg-accent text-white border-accent"
-                          : "bg-surface2 text-ink-soft hover:bg-surface2/80",
+                        "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors touch-tap",
+                        showAddMode === "url"
+                          ? "bg-sky-600 text-white border-sky-600"
+                          : "border-line bg-surface2 text-ink-soft hover:bg-surface2/80",
                       )}
+                      title="Adicionar Link ou Vídeo do YouTube"
+                    >
+                      <Link2 className="h-3 w-3" />
+                      <span>+ Link</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddMode((m) => (m === "text" ? null : "text"))}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors touch-tap",
+                        showAddMode === "text"
+                          ? "bg-accent text-white border-accent"
+                          : "border-line bg-surface2 text-ink-soft hover:bg-surface2/80",
+                      )}
+                      title="Adicionar Nota de Texto ou Observação"
                     >
                       <Plus className="h-3 w-3" />
-                      <span>{noteContent.trim() ? "Nota Anexada" : "Nota"}</span>
+                      <span>+ Nota</span>
                     </button>
                   </div>
                 </div>
 
                 <p className="text-[11px] text-ink-faint leading-relaxed">
-                  A IA usará a <strong>transcrição da fala como foco principal</strong> e os anexos como material de apoio. Cole imagens com <strong>Ctrl+V</strong> ou arraste arquivos aqui.
+                  A IA usará a <strong>transcrição da fala como foco principal</strong> e os anexos (arquivos, múltiplos links e notas) como contexto e material de apoio.
                 </p>
 
-                {/* Attached Files List */}
-                {attachedFiles.length > 0 && (
-                  <div className="space-y-1.5 pt-1">
+                {/* Form to Add Note or Link */}
+                {showAddMode && (
+                  <div className="space-y-2 rounded-2xl border border-accent/30 bg-accent/5 p-3 animate-fade-in text-xs">
+                    <div className="flex items-center justify-between border-b border-line/50 pb-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowAddMode("text")}
+                          className={cn(
+                            "px-2.5 py-1 rounded-lg text-xs font-semibold transition-all",
+                            showAddMode === "text"
+                              ? "bg-accent text-white shadow-xs"
+                              : "text-ink-soft hover:text-ink",
+                          )}
+                        >
+                          Nota de Texto
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddMode("url")}
+                          className={cn(
+                            "px-2.5 py-1 rounded-lg text-xs font-semibold transition-all",
+                            showAddMode === "url"
+                              ? "bg-sky-600 text-white shadow-xs"
+                              : "text-ink-soft hover:text-ink",
+                          )}
+                        >
+                          Link / Web / YouTube
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddMode(null);
+                          setInputTitle("");
+                          setInputContent("");
+                        }}
+                        className="text-ink-faint hover:text-ink p-1 rounded-md"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+
+                    <input
+                      type="text"
+                      value={inputTitle}
+                      onChange={(e) => setInputTitle(e.target.value)}
+                      placeholder={showAddMode === "url" ? "Título ou descrição do link (opcional)" : "Título da nota ou tema (opcional)"}
+                      className="w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:ring-1 focus:ring-accent"
+                    />
+
+                    {showAddMode === "url" ? (
+                      <input
+                        type="url"
+                        value={inputContent}
+                        onChange={(e) => setInputContent(e.target.value)}
+                        placeholder="https://exemplo.com/artigo ou link do YouTube…"
+                        className="w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:ring-1 focus:ring-accent font-mono text-[11px]"
+                      />
+                    ) : (
+                      <textarea
+                        rows={3}
+                        value={inputContent}
+                        onChange={(e) => setInputContent(e.target.value)}
+                        placeholder="Digite observações importantes, termos técnicos ou resumo de tópicos…"
+                        className="w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:ring-1 focus:ring-accent resize-y"
+                      />
+                    )}
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <Button
+                        type="button"
+                        variant="primary"
+                        size="sm"
+                        onClick={handleAddNoteOrLink}
+                        disabled={!inputContent.trim()}
+                        className="h-7 text-xs font-semibold"
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        <span>{showAddMode === "url" ? "Adicionar Link" : "Adicionar Nota"}</span>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Attached Items List (Files, Notes, Links) */}
+                {totalAttachments > 0 && (
+                  <div className="space-y-1.5 pt-1 max-h-48 overflow-y-auto">
+                    {/* Files */}
                     {attachedFiles.map((af, i) => (
                       <div
-                        key={i}
+                        key={`file-${i}`}
                         className="flex items-center justify-between rounded-xl border border-line bg-surface2 px-3 py-1.5 text-xs text-ink"
                       >
                         <div className="flex items-center gap-2 truncate min-w-0">
@@ -352,26 +508,40 @@ export function UploadFlowModal({
                         </button>
                       </div>
                     ))}
-                  </div>
-                )}
 
-                {/* Quick note form */}
-                {showNoteInput && (
-                  <div className="space-y-2 rounded-xl border border-accent/30 bg-accent-soft/30 p-2.5 animate-fade-in text-xs">
-                    <input
-                      type="text"
-                      value={noteTitle}
-                      onChange={(e) => setNoteTitle(e.target.value)}
-                      placeholder="Título da nota ou tema (opcional)"
-                      className="w-full rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:ring-1 focus:ring-accent"
-                    />
-                    <textarea
-                      rows={2}
-                      value={noteContent}
-                      onChange={(e) => setNoteContent(e.target.value)}
-                      placeholder="Digite observações importantes, nomes de termos técnicos ou links de slides…"
-                      className="w-full rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:ring-1 focus:ring-accent"
-                    />
+                    {/* Notes & Links */}
+                    {attachedNotes.map((n) => {
+                      const isUrl = n.type === "url";
+                      return (
+                        <div
+                          key={n.id}
+                          className="flex items-center justify-between rounded-xl border border-line bg-surface2 px-3 py-1.5 text-xs text-ink"
+                        >
+                          <div className="flex items-center gap-2 truncate min-w-0">
+                            {isUrl ? (
+                              <Link2 className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+                            ) : (
+                              <FileText className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                            )}
+                            <span className="truncate font-medium">{n.title}</span>
+                            <span className={cn(
+                              "text-[10px] font-semibold px-1.5 py-0.2 rounded shrink-0",
+                              isUrl ? "bg-sky-500/15 text-sky-600 dark:text-sky-400" : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                            )}>
+                              {isUrl ? "Link" : "Nota"}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveNote(n.id)}
+                            className="text-ink-faint hover:text-danger-fg p-1 transition-colors"
+                            title="Remover"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
