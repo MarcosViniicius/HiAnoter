@@ -57,15 +57,6 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
   const isPanningRef = useRef(false);
   const startPanPosRef = useRef({ mouseX: 0, mouseY: 0, panX: 0, panY: 0 });
 
-  // Node Dragging State
-  const draggingNodeIdRef = useRef<string | null>(null);
-  const [customOffsets, setCustomOffsets] = useState<Record<string, { x: number; y: number }>>({});
-  const dragStartRef = useRef<{ mouseX: number; mouseY: number; initialOffset: { x: number; y: number } }>({
-    mouseX: 0,
-    mouseY: 0,
-    initialOffset: { x: 0, y: 0 },
-  });
-
   // Collapsed Nodes State
   const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>({});
 
@@ -118,55 +109,6 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
     };
   }, []);
 
-  // Global Pointer Listeners (Window-level capture so moving mouse never stops/lags)
-  useEffect(() => {
-    const handleGlobalPointerMove = (e: PointerEvent) => {
-      if (isPanningRef.current) {
-        const dx = e.clientX - startPanPosRef.current.mouseX;
-        const dy = e.clientY - startPanPosRef.current.mouseY;
-        const newPan = {
-          x: startPanPosRef.current.panX + dx,
-          y: startPanPosRef.current.panY + dy,
-        };
-        panRef.current = newPan;
-        setPan(newPan);
-      } else if (draggingNodeIdRef.current) {
-        const currentZoom = zoomRef.current;
-        const dx = (e.clientX - dragStartRef.current.mouseX) / currentZoom;
-        const dy = (e.clientY - dragStartRef.current.mouseY) / currentZoom;
-        const nodeId = draggingNodeIdRef.current;
-
-        setCustomOffsets((prev) => ({
-          ...prev,
-          [nodeId]: {
-            x: dragStartRef.current.initialOffset.x + dx,
-            y: dragStartRef.current.initialOffset.y + dy,
-          },
-        }));
-      }
-    };
-
-    const handleGlobalPointerUp = () => {
-      if (isPanningRef.current) {
-        isPanningRef.current = false;
-        setIsPanningState(false);
-      }
-      if (draggingNodeIdRef.current) {
-        draggingNodeIdRef.current = null;
-      }
-    };
-
-    window.addEventListener("pointermove", handleGlobalPointerMove, { passive: true });
-    window.addEventListener("pointerup", handleGlobalPointerUp);
-    window.addEventListener("pointercancel", handleGlobalPointerUp);
-
-    return () => {
-      window.removeEventListener("pointermove", handleGlobalPointerMove);
-      window.removeEventListener("pointerup", handleGlobalPointerUp);
-      window.removeEventListener("pointercancel", handleGlobalPointerUp);
-    };
-  }, []);
-
   // Calculate Layout Positions (Radial 360 Distribution around 0, 0)
   const nodePositions = useMemo(() => {
     const positions: NodePosition[] = [];
@@ -175,8 +117,8 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
     // Root Node (at 0, 0)
     const rootPos: NodePosition = {
       id: "root",
-      x: 0 + (customOffsets["root"]?.x || 0),
-      y: 0 + (customOffsets["root"]?.y || 0),
+      x: 0,
+      y: 0,
       node: data,
       color: "#0f766e",
       level: 0,
@@ -197,11 +139,10 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
       const baseX = RADIUS_MAIN * Math.cos(angle);
       const baseY = RADIUS_MAIN * Math.sin(angle);
 
-      const offset = customOffsets[branchId] || { x: 0, y: 0 };
       const branchPos: NodePosition = {
         id: branchId,
-        x: baseX + offset.x,
-        y: baseY + offset.y,
+        x: baseX,
+        y: baseY,
         node: branch,
         parentPos: { x: rootPos.x, y: rootPos.y },
         color: branchColor,
@@ -227,12 +168,11 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
 
           const subBaseX = branchPos.x + RADIUS_SUB * Math.cos(subAngle);
           const subBaseY = branchPos.y + RADIUS_SUB * Math.sin(subAngle);
-          const subCustom = customOffsets[subId] || { x: 0, y: 0 };
 
           positions.push({
             id: subId,
-            x: subBaseX + subCustom.x,
-            y: subBaseY + subCustom.y,
+            x: subBaseX,
+            y: subBaseY,
             node: sub,
             parentPos: { x: branchPos.x, y: branchPos.y },
             color: sub.color || branchColor,
@@ -244,7 +184,7 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
     });
 
     return positions;
-  }, [data, customOffsets, collapsedNodes]);
+  }, [data, collapsedNodes]);
 
   // Zoom controls
   const handleZoom = (delta: number) => {
@@ -260,7 +200,9 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
     zoomRef.current = 1;
     setPan({ x: 0, y: 0 });
     panRef.current = { x: 0, y: 0 };
-    setCustomOffsets({});
+    if (svgRef.current) {
+      svgRef.current.style.transform = `translate3d(0px, 0px, 0) scale(1)`;
+    }
   };
 
   // Pointer Down on canvas background or nodes
@@ -270,22 +212,10 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
       return;
     }
 
+    e.preventDefault();
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch {}
-
-    const nodeEl = target.closest("[data-node-id]");
-    if (nodeEl) {
-      const nodeId = nodeEl.getAttribute("data-node-id");
-      if (nodeId) {
-        draggingNodeIdRef.current = nodeId;
-        dragStartRef.current = {
-          mouseX: e.clientX,
-          mouseY: e.clientY,
-          initialOffset: customOffsets[nodeId] || { x: 0, y: 0 },
-        };
-      }
-    }
 
     isPanningRef.current = true;
     setIsPanningState(true);
@@ -300,28 +230,17 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
   const handleContainerPointerMove = (e: React.PointerEvent) => {
     if (!isPanningRef.current) return;
 
-    if (draggingNodeIdRef.current) {
-      const currentZoom = zoomRef.current;
-      const dx = (e.clientX - dragStartRef.current.mouseX) / currentZoom;
-      const dy = (e.clientY - dragStartRef.current.mouseY) / currentZoom;
-      const nodeId = draggingNodeIdRef.current;
+    const dx = e.clientX - startPanPosRef.current.mouseX;
+    const dy = e.clientY - startPanPosRef.current.mouseY;
+    const newPan = {
+      x: startPanPosRef.current.panX + dx,
+      y: startPanPosRef.current.panY + dy,
+    };
+    panRef.current = newPan;
 
-      setCustomOffsets((prev) => ({
-        ...prev,
-        [nodeId]: {
-          x: dragStartRef.current.initialOffset.x + dx,
-          y: dragStartRef.current.initialOffset.y + dy,
-        },
-      }));
-    } else {
-      const dx = e.clientX - startPanPosRef.current.mouseX;
-      const dy = e.clientY - startPanPosRef.current.mouseY;
-      const newPan = {
-        x: startPanPosRef.current.panX + dx,
-        y: startPanPosRef.current.panY + dy,
-      };
-      panRef.current = newPan;
-      setPan(newPan);
+    // Direct 60-120fps DOM manipulation without triggering React re-renders during drag
+    if (svgRef.current) {
+      svgRef.current.style.transform = `translate3d(${newPan.x}px, ${newPan.y}px, 0) scale(${zoomRef.current})`;
     }
   };
 
@@ -332,9 +251,8 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
       } catch {}
       isPanningRef.current = false;
       setIsPanningState(false);
-    }
-    if (draggingNodeIdRef.current) {
-      draggingNodeIdRef.current = null;
+      // Sync state once on gesture end
+      setPan(panRef.current);
     }
   };
 
@@ -471,6 +389,7 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
         onPointerMove={handleContainerPointerMove}
         onPointerUp={handleContainerPointerUp}
         onPointerCancel={handleContainerPointerUp}
+        onDragStart={(e) => e.preventDefault()}
         className={`w-full h-full min-h-[480px] sm:min-h-[620px] overflow-hidden touch-none select-none ${
           isPanningState ? "cursor-grabbing" : "cursor-grab"
         }`}
@@ -484,8 +403,9 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
             transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
             transformOrigin: "center center",
             willChange: "transform",
+            userSelect: "none",
           }}
-          className="overflow-visible w-full h-full"
+          className="overflow-visible w-full h-full pointer-events-none"
         >
           <defs>
             {DEFAULT_COLORS.map((col, idx) => (
@@ -521,10 +441,11 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
             width={CANVAS_WIDTH}
             height={CANVAS_HEIGHT}
             fill="url(#dotPatternRadial)"
+            className="pointer-events-none"
           />
 
           {/* 1. Curved Bézier Connectors */}
-          <g className="mindmap-connectors">
+          <g className="mindmap-connectors pointer-events-none">
             {nodePositions
               .filter((p) => p.parentPos)
               .map((p) => {
@@ -560,7 +481,7 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
           </g>
 
           {/* 2. Nodes Layer */}
-          <g className="mindmap-nodes">
+          <g className="mindmap-nodes pointer-events-auto">
             {nodePositions.map((pos) => {
               const isRoot = pos.level === 0;
               const isMain = pos.level === 1;
@@ -605,6 +526,7 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
                       fontSize="13"
                       fontWeight="bold"
                       fontFamily="sans-serif"
+                      className="pointer-events-none select-none"
                     >
                       {icon} MAPA MENTAL
                     </text>
@@ -616,7 +538,7 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
                       fontSize="15"
                       fontWeight="800"
                       fontFamily="serif"
-                      className="tracking-tight"
+                      className="tracking-tight pointer-events-none select-none"
                     >
                       {pos.node.name.length > 28
                         ? pos.node.name.slice(0, 26) + "…"
@@ -668,6 +590,7 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
                           fontSize="13"
                           fontWeight="900"
                           fontFamily="sans-serif"
+                          className="pointer-events-none select-none"
                         >
                           {pos.order}
                         </text>
@@ -683,6 +606,7 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
                       fontSize="13.5"
                       fontWeight="700"
                       fontFamily="serif"
+                      className="pointer-events-none select-none"
                     >
                       {nodeText.length > 24 ? nodeText.slice(0, 22) + "…" : nodeText}
                     </text>
@@ -697,6 +621,7 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
                         fontSize="11"
                         fontWeight="500"
                         fontFamily="sans-serif"
+                        className="pointer-events-none select-none"
                       >
                         {nodeAnnotation.length > 32
                           ? nodeAnnotation.slice(0, 30) + "…"
@@ -710,7 +635,7 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
                         data-collapse-btn="true"
                         transform="translate(112, 0)"
                         onClick={(e) => toggleCollapse(e, pos.id)}
-                        className="cursor-pointer"
+                        className="cursor-pointer pointer-events-auto"
                       >
                         <circle
                           cx="0"
@@ -727,6 +652,7 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
                           fontSize="11"
                           fontWeight="bold"
                           fill="#334155"
+                          className="pointer-events-none select-none"
                         >
                           {isCollapsed ? "+" : "−"}
                         </text>
@@ -764,6 +690,7 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
                     fontSize="12"
                     fontWeight="600"
                     fontFamily="sans-serif"
+                    className="pointer-events-none select-none"
                   >
                     {pos.node.name.length > 22
                       ? pos.node.name.slice(0, 20) + "…"

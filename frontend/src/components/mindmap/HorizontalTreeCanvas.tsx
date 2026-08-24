@@ -88,8 +88,9 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
     };
   }, []);
 
-  // Pointer Drag Handlers with PointerCapture
+  // Pointer Drag Handlers with PointerCapture & Direct 60fps DOM transform
   const handlePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch {}
@@ -112,7 +113,11 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
       y: startPanPosRef.current.panY + dy,
     };
     panRef.current = newPan;
-    setPan(newPan);
+
+    // Mutate DOM transform directly for buttery 60-120fps with zero React re-render overhead
+    if (svgRef.current) {
+      svgRef.current.style.transform = `translate3d(${newPan.x}px, ${newPan.y}px, 0) scale(${zoomRef.current})`;
+    }
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -122,6 +127,8 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
       } catch {}
       isPanningRef.current = false;
       setIsPanningState(false);
+      // Sync state once on gesture finish
+      setPan(panRef.current);
     }
   };
 
@@ -334,6 +341,7 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        onDragStart={(e) => e.preventDefault()}
         className={`w-full h-full min-h-[480px] sm:min-h-[620px] overflow-hidden touch-none select-none ${
           isPanningState ? "cursor-grabbing" : "cursor-grab"
         }`}
@@ -347,6 +355,7 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
             transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
             transformOrigin: "center center",
             willChange: "transform",
+            userSelect: "none",
           }}
           className="overflow-visible w-full h-full pointer-events-none"
         >

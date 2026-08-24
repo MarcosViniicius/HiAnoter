@@ -33,6 +33,32 @@ export const MindmapPanel = memo(function MindmapPanel({
 
   // Parse mindmap from recording
   const mindmapData: MindmapNode | null = useMemo(() => {
+    // 1. Check if mindmap_json is a rich, valid mindmap (more than 1 branch)
+    if (recording.mindmap_json) {
+      try {
+        const parsed = JSON.parse(recording.mindmap_json);
+        if (
+          parsed &&
+          typeof parsed === "object" &&
+          parsed.name &&
+          Array.isArray(parsed.subbranches) &&
+          parsed.subbranches.length > 1 &&
+          parsed.name !== "Conteúdo"
+        ) {
+          return parsed as MindmapNode;
+        }
+      } catch {}
+    }
+
+    // 2. Infer rich tree structure from summary markdown headers, numbered sections & bullets
+    if (recording.summary_markdown && recording.summary_markdown.trim()) {
+      const parsedFromMd = parseMarkdownToMindmap(recording.title, recording.summary_markdown);
+      if (parsedFromMd.subbranches && parsedFromMd.subbranches.length > 0) {
+        return parsedFromMd;
+      }
+    }
+
+    // 3. Fallback to whatever mindmap_json had if available
     if (recording.mindmap_json) {
       try {
         const parsed = JSON.parse(recording.mindmap_json);
@@ -40,11 +66,6 @@ export const MindmapPanel = memo(function MindmapPanel({
           return parsed as MindmapNode;
         }
       } catch {}
-    }
-
-    // Fallback: Infer tree structure from summary markdown headers & bullets
-    if (recording.summary_markdown) {
-      return parseMarkdownToMindmap(recording.title, recording.summary_markdown);
     }
 
     return null;
@@ -313,21 +334,101 @@ function parseMarkdownToMindmap(title: string, md: string): MindmapNode {
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (trimmed.startsWith("### ") || trimmed.startsWith("## ")) {
-      const headerText = trimmed.replace(/^#{2,3}\s+/, "").trim();
-      currentBranch = { name: headerText, subbranches: [] };
-      branches.push(currentBranch);
-    } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-      const bulletText = trimmed.replace(/^[-*]\s+/, "").trim();
-      if (currentBranch) {
+    if (!trimmed) continue;
+
+    // Check for Headings: ## ..., ### ..., # ..., or numbered sections like "1. Tese Central", "2. Definições", etc.
+    const isHeading =
+      /^#{1,4}\s+/.test(trimmed) ||
+      /^\d+[\.\)]\s+[A-ZÀ-Úa-zà-ú]/.test(trimmed) ||
+      /^\*\*\d+[\.\)]\s+/.test(trimmed) ||
+      /^\*\*[A-ZÀ-Ú][^*]{3,40}\*\*:?$/.test(trimmed);
+
+    if (isHeading) {
+      // Clean header text
+      let headerText = trimmed
+        .replace(/^#{1,4}\s+/, "")
+        .replace(/^\*\*/, "")
+        .replace(/\*\*$/, "")
+        .replace(/[:：]$/, "")
+        .trim();
+
+      // Skip generic summary titles
+      const lower = headerText.toLowerCase();
+      if (
+        headerText.length > 1 &&
+        !lower.includes("fichamento analítico") &&
+        !lower.includes("resumo estruturado") &&
+        !lower.includes("resumo anotado")
+      ) {
+        if (headerText.length > 45) {
+          headerText = headerText.slice(0, 42) + "…";
+        }
+        currentBranch = { name: headerText, subbranches: [] };
+        branches.push(currentBranch);
+        continue;
+      }
+    }
+
+    // Check for bullets: - ..., * ..., or numbered sub-items "1.1 ...", "a) ..."
+    const isBullet =
+      /^[-*•]\s+/.test(trimmed) ||
+      /^\d+\.\d+\s+/.test(trimmed) ||
+      /^[a-zA-Z][\.\)]\s+/.test(trimmed) ||
+      /^\*\*[^*]+\*\*:/.test(trimmed);
+
+    if (isBullet && currentBranch) {
+      let bulletText = trimmed
+        .replace(/^[-*•]\s+/, "")
+        .replace(/^\d+\.\d+\s+/, "")
+        .replace(/^[a-zA-Z][\.\)]\s+/, "")
+        .replace(/\*\*/g, "")
+        .trim();
+
+      if (bulletText.length > 1) {
+        if (bulletText.length > 40) {
+          bulletText = bulletText.slice(0, 38) + "…";
+        }
         currentBranch.subbranches = currentBranch.subbranches || [];
-        currentBranch.subbranches.push({ name: bulletText, subbranches: [] });
+        if (currentBranch.subbranches.length < 8) {
+          currentBranch.subbranches.push({ name: bulletText, subbranches: [] });
+        }
+      }
+    } else if (!isHeading && currentBranch && currentBranch.subbranches && currentBranch.subbranches.length < 5) {
+      // If there are key sentences under a heading that is not bulleted
+      const sentences = trimmed.split(/[\.;]\s+/);
+      for (const sent of sentences) {
+        const cleanSent = sent.replace(/\*\*/g, "").trim();
+        if (
+          cleanSent.length > 10 &&
+          cleanSent.length < 75 &&
+          !cleanSent.startsWith("|") &&
+          !cleanSent.startsWith("$$") &&
+          !cleanSent.startsWith("```")
+        ) {
+          const name = cleanSent.length > 38 ? cleanSent.slice(0, 36) + "…" : cleanSent;
+          currentBranch.subbranches.push({ name, subbranches: [] });
+          break;
+        }
+      }
+    }
+  }
+
+  // If still fewer than 2 branches, parse by paragraphs
+  if (branches.length < 2 && md.length > 80) {
+    const paragraphs = md.split(/\n\s*\n/).filter((p) => p.trim().length > 15);
+    for (let i = 0; i < Math.min(paragraphs.length, 6); i++) {
+      const firstLine = paragraphs[i].trim().split("\n")[0].replace(/[#*`_]/g, "").trim();
+      if (firstLine && firstLine.length > 3) {
+        branches.push({
+          name: firstLine.length > 38 ? firstLine.slice(0, 36) + "…" : firstLine,
+          subbranches: [],
+        });
       }
     }
   }
 
   return {
-    name: title || "Resumo",
+    name: title || "Mapa Mental",
     subbranches: branches.length > 0 ? branches : [{ name: "Tópicos Principais", subbranches: [] }],
   };
 }
