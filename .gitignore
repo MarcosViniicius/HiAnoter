@@ -1,0 +1,57 @@
+﻿# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node & Frontend build
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
+.npm/
+
+# Environment variables & secrets
+.env
+.env.local
+backend/.env
+
+# Local database & storage
+*.db
+*.sqlite
+*.sqlite3
+data/
+uploads/
+audio/
+models/
+documents/
+openrouter_models_cache.json
+settings.json
+
+# Logs & temp
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.tmp/
+tmp/
+temp/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Agent / Tool local scratch artifacts
+.gemini/
