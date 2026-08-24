@@ -87,25 +87,24 @@ body,
 
 /* ------------------------------------------------------- scrollbars */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  @apply rounded-full bg-ink/15;
-  border: 3px solid transparent;
+  background-color: rgb(var(--text-ink-soft) / 0.35);
+  border-radius: 9999px;
+  border: 2px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-ink/25;
-  border: 3px solid transparent;
-  background-clip: content-box;
+  background-color: rgb(var(--text-ink-soft) / 0.65);
 }
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgb(29 26 21 / 0.2) transparent;
+  scrollbar-color: rgb(var(--text-ink-soft) / 0.35) transparent;
 }
 
 /* ------------------------------------------------------- grain overlay */

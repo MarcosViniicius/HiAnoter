@@ -28,6 +28,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { ToastProvider } from "@/components/ui/toast";
+import { QuickScrollWidget } from "@/components/QuickScrollWidget";
 import { useHealth, useRecording, useRecordings } from "@/hooks/queries";
 import { useGlobalLiveEvents } from "@/hooks/useRecordingLive";
 import { LiveRecordingProvider, useLiveRecording } from "@/context/LiveRecordingContext";
@@ -374,6 +375,9 @@ function AppContent() {
           )}
         </main>
       </div>
+
+      {/* Floating Quick Scroll & Section Navigation Widget */}
+      <QuickScrollWidget />
 
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 

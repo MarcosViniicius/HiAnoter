@@ -1,6 +1,7 @@
 /**
  * Math and LaTeX normalizer for markdown rendering and export.
  * Handles inline ($...$, \(...\)), display ($$...$$, \[...\]),
+ * matrices/environments (\begin{bmatrix}...\end{bmatrix}),
  * and bare LaTeX commands (e.g. \vec{u}, \alpha, \sqrt{...}).
  */
 
@@ -19,12 +20,38 @@ export function normalizeMathMarkdown(content: string | null | undefined): strin
     return `$${math.trim()}$`;
   });
 
-  // 3. Process lines to catch bare LaTeX expressions that are not inside code blocks or dollar signs
+  // 3. Fix common LLM malformed matrix/environment delimiters:
+  // e.g. "$$A = \begin{bmatrix}$$ a_{11} ... \end{bmatrix}" -> "$$\nA = \begin{bmatrix}\na_{11} ... \end{bmatrix}\n$$"
+  text = text.replace(/(\\begin\{[a-zA-Z0-9*]+\})\s*\$\$+/g, "$1\n");
+  text = text.replace(/(\\begin\{[a-zA-Z0-9*]+\})\s*\$/g, "$1\n");
+  text = text.replace(/\$\$+\s*(\\end\{[a-zA-Z0-9*]+\})/g, "\n$1");
+  text = text.replace(/\$\s*(\\end\{[a-zA-Z0-9*]+\})/g, "\n$1");
+
+  // Replace \begin{align} or \begin{align*} with \begin{aligned} for KaTeX compatibility
+  text = text.replace(/\\begin\{align\*?\}/g, "\\begin{aligned}");
+  text = text.replace(/\\end\{align\*?\}/g, "\\end{aligned}");
+
+  // Ensure matrix & multiline environments are properly wrapped in $$ ... $$
+  const envPattern = /((?:(?:\$\$\s*)?[^\n$]*?\\begin\{(?:bmatrix|pmatrix|matrix|vmatrix|Vmatrix|aligned|cases|array|split|gather)\}[\s\S]*?\\end\{(?:bmatrix|pmatrix|matrix|vmatrix|Vmatrix|aligned|cases|array|split|gather)\}[^\n$]*?(?:\s*\$\$)?)|\b\\begin\{(?:bmatrix|pmatrix|matrix|vmatrix|Vmatrix|aligned|cases|array|split|gather)\}[\s\S]*?\\end\{(?:bmatrix|pmatrix|matrix|vmatrix|Vmatrix|aligned|cases|array|split|gather)\})/g;
+
+  text = text.replace(envPattern, (match) => {
+    let clean = match.trim();
+    if (clean.startsWith("$$")) clean = clean.slice(2).trim();
+    if (clean.endsWith("$$")) clean = clean.slice(0, -2).trim();
+    clean = clean.replace(/(\\begin\{[a-zA-Z0-9*]+\})\s*\$\$+/g, "$1\n");
+    clean = clean.replace(/\$\$+\s*(\\end\{[a-zA-Z0-9*]+\})/g, "\n$1");
+    return `\n\n$$\n${clean}\n$$\n\n`;
+  });
+
+  // 4. Clean up any consecutive display math tags like "$$$$" or "$$\n$$"
+  text = text.replace(/\$\$\s*\$\$/g, "$$");
+
+  // 5. Line by line pass for bare formulas
   const lines = text.split("\n");
   let inCodeBlock = false;
+  let inMathBlock = false;
   const processedLines: string[] = [];
 
-  // Patterns that indicate a line is primarily a mathematical formula
   const mathKeywords = [
     "\\vec",
     "\\alpha",
@@ -61,7 +88,6 @@ export function normalizeMathMarkdown(content: string | null | undefined): strin
     "\\cap",
     "\\forall",
     "\\exists",
-    "\\begin{",
     "\\left(",
     "\\right)",
     "\\left[",
@@ -86,8 +112,19 @@ export function normalizeMathMarkdown(content: string | null | undefined): strin
 
     const trimmed = line.trim();
 
-    // If the line already has $$ or is empty or is a heading/table row/bullet without bare math
-    if (!trimmed || trimmed.startsWith("$$") || trimmed.endsWith("$$")) {
+    // Track $$ math blocks
+    if (trimmed === "$$") {
+      inMathBlock = !inMathBlock;
+      processedLines.push(line);
+      continue;
+    }
+
+    if (trimmed.startsWith("$$") && trimmed.endsWith("$$") && trimmed.length > 2) {
+      processedLines.push(line);
+      continue;
+    }
+
+    if (inMathBlock) {
       processedLines.push(line);
       continue;
     }
@@ -96,7 +133,6 @@ export function normalizeMathMarkdown(content: string | null | undefined): strin
     const containsMath = mathKeywords.some((kw) => trimmed.includes(kw));
 
     if (containsMath) {
-      // Check if it's a pure standalone formula line (e.g. \vec{u} = (u_1, u_2) or |\vec{u}| = \sqrt{u_1^2 + u_2^2})
       const isStandaloneFormula =
         !trimmed.startsWith("#") &&
         !trimmed.startsWith("|") &&
@@ -108,7 +144,6 @@ export function normalizeMathMarkdown(content: string | null | undefined): strin
           trimmed.includes(" \\in "));
 
       if (isStandaloneFormula) {
-        // If line is a bullet item like "- \vec{u} = (u_1, u_2)"
         if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
           const prefix = trimmed.slice(0, 2);
           const formula = trimmed.slice(2).trim();
@@ -116,15 +151,11 @@ export function normalizeMathMarkdown(content: string | null | undefined): strin
           continue;
         }
 
-        // Entire line is a block formula
         processedLines.push(`$$${trimmed}$$`);
         continue;
       }
 
-      // If line has inline bare LaTeX (like "a norma é |\vec{u}| = \sqrt{...} dada por")
-      // Safely wrap inline formulas: e.g. `\vec{...}` or `\alpha`
       if (!trimmed.includes("$")) {
-        // Wrap inline backtick LaTeX if any: `\vec{u}` -> $\vec{u}$
         line = line.replace(/`(\\[a-zA-Z]+[^`]+)`/g, (_, f) => `$${f.trim()}$`);
       }
     }
