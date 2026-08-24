@@ -56,7 +56,7 @@ export const api = {
       summaryStyle?: string;
       transcriptionProvider?: "local" | "openrouter";
       whisperModel?: string;
-      onProgress?: (pct: number) => void;
+      onProgress?: (pct: number, loaded: number, total: number) => void;
     },
   ): Promise<UploadResponse> {
     const form = new FormData();
@@ -80,11 +80,14 @@ export const api = {
       xhr.open("POST", `${API_BASE}${endpoint}`);
       xhr.responseType = "json";
       xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+        if (e.lengthComputable && onProgress) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          onProgress(pct, e.loaded, e.total);
+        }
       };
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          onProgress(100);
+          onProgress(100, file.size, file.size);
           resolve(xhr.response as UploadResponse);
         } else {
           const detail =

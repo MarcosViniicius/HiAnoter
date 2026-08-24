@@ -86,6 +86,9 @@ export function useRecordingLive(id: string | null, enabled = true) {
             progress_pct: patch.progress_pct ?? 0,
             error_message: patch.error_message,
           });
+          if (patch.status === "COMPLETED" || patch.status === "FAILED") {
+            void refreshRecording();
+          }
         }
       } else if (eventType === "done") {
         void refreshRecording();

@@ -148,11 +148,14 @@ export function UploadFlowModal({
     setAttachedNotes((prev) => prev.filter((n) => n.id !== id));
   };
 
+  const [uploadStats, setUploadStats] = useState<{ loaded: number; total: number } | null>(null);
+
   const handleStartUpload = async () => {
     setIsUploading(true);
     setErrorMsg(null);
-    setUploadProgress(10);
-    setUploadStepText("Enviando arquivo de áudio principal…");
+    setUploadProgress(0);
+    setUploadStats({ loaded: 0, total: file.size });
+    setUploadStepText(`Enviando áudio principal (0 MB / ${formatBytes(file.size)})…`);
 
     // Coleta todas as notas + qualquer texto preenchido no input atual
     const allNotes = [...attachedNotes];
@@ -173,7 +176,16 @@ export function UploadFlowModal({
         deferred: false,
         transcriptionProvider: currentTransProvider as any,
         whisperModel: currentTransProvider === "openrouter" ? "openai/whisper-large-v3-turbo" : currentWhisperModel,
-        onProgress: (pct) => setUploadProgress(Math.max(10, Math.round(pct * 0.7))),
+        onProgress: (pct, loaded, total) => {
+          setUploadStats({ loaded, total });
+          const mappedPct = Math.min(85, Math.max(1, Math.round(pct * 0.85)));
+          setUploadProgress(mappedPct);
+          if (pct >= 100) {
+            setUploadStepText("Áudio enviado! Servidor preparando processamento…");
+          } else {
+            setUploadStepText(`Enviando áudio principal (${formatBytes(loaded)} de ${formatBytes(total)})…`);
+          }
+        },
       });
 
       const recordingId = res.id;
@@ -186,7 +198,7 @@ export function UploadFlowModal({
         } catch (docErr) {
           console.error("Erro ao enviar lote de documentos", docErr);
         }
-        setUploadProgress(80);
+        setUploadProgress(90);
       }
 
       // Anexar notas e links de apoio
@@ -206,14 +218,14 @@ export function UploadFlowModal({
             console.error("Erro ao anexar nota/link", nErr);
           }
         }
-        setUploadProgress(95);
+        setUploadProgress(96);
       }
 
       setUploadProgress(100);
       setUploadStepText("Pronto! Abrindo transcrição…");
       setTimeout(() => {
         onComplete(recordingId);
-      }, 300);
+      }, 250);
     } catch (err: any) {
       setIsUploading(false);
       setErrorMsg(err.message || "Falha ao enviar e processar o áudio.");
@@ -577,17 +589,24 @@ export function UploadFlowModal({
           ) : (
             <div className="space-y-3 py-4 text-center">
               <div className="flex items-center justify-between text-xs text-ink-soft">
-                <span>{uploadStepText}</span>
-                <span className="font-mono font-semibold tabular-nums text-accent">
+                <span className="truncate pr-2 font-medium">{uploadStepText}</span>
+                <span className="font-mono font-semibold tabular-nums text-accent shrink-0">
                   {uploadProgress}%
                 </span>
               </div>
               <Progress value={uploadProgress} tone="accent" className="h-2.5 rounded-full" />
-              <p className="text-[11px] text-ink-faint">
-                {currentTransProvider === "openrouter"
-                  ? "Motor: OpenRouter (openai/whisper-large-v3-turbo)"
-                  : `Motor: Whisper Local (${currentWhisperModel})`}
-              </p>
+              <div className="flex items-center justify-between text-[11px] text-ink-faint">
+                <span>
+                  {uploadStats && uploadStats.total > 0
+                    ? `${formatBytes(uploadStats.loaded)} de ${formatBytes(uploadStats.total)}`
+                    : formatBytes(file.size)}
+                </span>
+                <span>
+                  {currentTransProvider === "openrouter"
+                    ? "Motor: OpenRouter Whisper Turbo"
+                    : `Motor: Whisper Local (${currentWhisperModel})`}
+                </span>
+              </div>
             </div>
           )}
         </div>

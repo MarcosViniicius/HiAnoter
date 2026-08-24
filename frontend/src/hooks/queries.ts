@@ -28,12 +28,12 @@ export function useRecording(id: string | null) {
     queryKey: ["recording", id],
     queryFn: () => api.recording(id!),
     enabled: Boolean(id),
-    staleTime: 3000,
+    staleTime: 0,
     refetchInterval: (query) => {
       const rec = query.state.data;
-      return rec && ["QUEUED", "TRANSCRIBING", "SUMMARIZING", "DRAFT"].includes(rec.status)
+      return rec && ["QUEUED", "TRANSCRIBING", "SUMMARIZING"].includes(rec.status)
         ? 1000
-        : 5000;
+        : 6000;
     },
   });
 }
@@ -56,7 +56,7 @@ export function useUploadRecording() {
       summaryStyle?: string;
       transcriptionProvider?: "local" | "openrouter";
       whisperModel?: string;
-      onProgress?: (pct: number) => void;
+      onProgress?: (pct: number, loaded: number, total: number) => void;
     }) =>
       api.upload(file, {
         title,
