@@ -12,8 +12,10 @@ import {
   Globe2,
   Lock,
   Rocket,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Upload,
   X,
   Zap,
 } from "lucide-react";
@@ -24,6 +26,8 @@ import { useHealth } from "@/hooks/queries";
 import { LLMConfigCard } from "./LLMConfigCard";
 import { languageOptions } from "@/lib/languages";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
 
 const LOCAL_WHISPER_MODELS = [
   { value: "large-v3", label: "large-v3 (Recomendado)", badge: "Máxima Fidelidade", description: "Padrão oficial do HiNoter para máxima precisão na fala" },
@@ -48,11 +52,34 @@ export function OnboardingModal({
   const health = useHealth();
   const device = health.data?.device;
 
+  const queryClient = useQueryClient();
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [values, setValues] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [revealNotionKey, setRevealNotionKey] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  const handleImportSettingsFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsImporting(true);
+    setImportError(null);
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      await api.validateSettingsBackup(json);
+      await api.importSettingsBackup(json);
+      await queryClient.invalidateQueries({ queryKey: ["settings"] });
+      localStorage.setItem("hinoter_onboarding_completed", "true");
+      setStep(4);
+    } catch (err: any) {
+      setImportError(err.message || "Arquivo JSON de configurações inválido.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   // Inicializa com configurações atuais do backend
   useEffect(() => {
@@ -234,6 +261,34 @@ export function OnboardingModal({
           {/* PASSO 1: IA & Texto */}
           {step === 1 && (
             <div className="space-y-4 animate-fade-in">
+              {/* Import Shortcut Card */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-2xl border border-line bg-surface2/60 p-3.5 shadow-sm">
+                <div>
+                  <div className="text-xs font-bold text-ink">Já possui configurações exportadas?</div>
+                  <div className="text-[11px] text-ink-soft">Importe seu arquivo JSON para configurar tudo com 1 clique.</div>
+                </div>
+                <div>
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-accent hover:bg-subtle transition-all shadow-sm">
+                    <Upload className="h-3.5 w-3.5" />
+                    <span>{isImporting ? "Importando..." : "Importar JSON"}</span>
+                    <input
+                      type="file"
+                      accept=".json,application/json"
+                      onChange={handleImportSettingsFile}
+                      disabled={isImporting}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {importError && (
+                <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-600 dark:text-rose-400">
+                  <ShieldAlert className="h-4 w-4 shrink-0" />
+                  <span>{importError}</span>
+                </div>
+              )}
+
               <LLMConfigCard
                 values={values}
                 onChange={setValue}

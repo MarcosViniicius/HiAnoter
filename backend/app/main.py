@@ -14,6 +14,7 @@ from .database import init_db
 from .events import hub
 from .pipeline import recover_stale_recordings
 from .queue import queue
+from .routes import backup as backup_router
 from .routes import health as health_router
 from .routes import recordings as recordings_router
 from .routes import settings as settings_router
@@ -74,6 +75,7 @@ app.add_middleware(
 app.include_router(health_router.router)
 app.include_router(recordings_router.router)
 app.include_router(settings_router.router)
+app.include_router(backup_router.router)
 
 
 # Serve the built frontend (optional; dev uses Vite on :5173).

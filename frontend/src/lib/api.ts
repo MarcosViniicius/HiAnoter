@@ -253,4 +253,99 @@ export const api = {
     const qs = query.toString() ? `?${query.toString()}` : "";
     return http<ModelsResponse>(`/api/settings/models${qs}`);
   },
+
+  // ---------------------------------------------------------------- backup & restore
+  exportSettingsUrl: (includeSecrets: boolean = false) =>
+    `/api/backup/settings/export?include_secrets=${includeSecrets ? "true" : "false"}`,
+
+  exportFullBackupUrl: () => "/api/backup/full/export",
+
+  validateSettingsBackup: (data: unknown) =>
+    http<{
+      valid: boolean;
+      format: string;
+      version: number;
+      exportedAt?: string;
+      totalSettings: number;
+      settingsSummary: Array<{ category: string; key: string; value: unknown }>;
+    }>("/api/backup/settings/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data }),
+    }),
+
+  importSettingsBackup: (data: unknown) =>
+    http<{
+      ok: boolean;
+      updatedCount: number;
+      updated: string[];
+      requiresRestart: string[];
+      notice: string;
+    }>("/api/backup/settings/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data }),
+    }),
+
+  validateFullBackup: async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch("/api/backup/full/validate", {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Falha na validação do backup" }));
+      throw new Error(err.detail || "Falha na validação do backup");
+    }
+    return res.json() as Promise<{
+      valid: boolean;
+      format: string;
+      version: number;
+      exportedAt: string;
+      stats: {
+        recordingsCount: number;
+        transcriptionsCount: number;
+        summariesCount: number;
+        documentsCount: number;
+        audioFilesCount: number;
+        docFilesCount: number;
+        totalBinaryBytes: number;
+      };
+      recordingsPreview: Array<{ id: string; title: string; created_at: string }>;
+      totalRecordings: number;
+      hasSettings: boolean;
+      existingConflictsCount: number;
+      conflicts: Array<{ id: string; title: string }>;
+      missingFilesCount: number;
+    }>;
+  },
+
+  importFullBackup: async (
+    file: File,
+    conflictStrategy: "merge" | "clean" = "merge",
+    restoreSettings: boolean = true,
+  ) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("conflict_strategy", conflictStrategy);
+    formData.append("restore_settings", String(restoreSettings));
+    const res = await fetch("/api/backup/full/import", {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Falha na restauração do backup" }));
+      throw new Error(err.detail || "Falha na restauração do backup");
+    }
+    return res.json() as Promise<{
+      ok: boolean;
+      recordingsRestored: number;
+      transcriptionsRestored: number;
+      summariesRestored: number;
+      documentsRestored: number;
+      filesExtracted: number;
+      message: string;
+    }>;
+  },
 };

@@ -9,6 +9,7 @@ import { TranscriptionConfigCard } from "./TranscriptionConfigCard";
 import { NotionConfigCard } from "./NotionConfigCard";
 import { AdvancedConfigCard } from "./AdvancedConfigCard";
 import { AppearanceConfigCard } from "./AppearanceConfigCard";
+import { BackupRestoreCard } from "./BackupRestoreCard";
 import { OnboardingModal } from "./OnboardingModal";
 
 export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -16,7 +17,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
   const update = useUpdateSettings();
   const reset = useResetSettings();
 
-  const [activeTab, setActiveTab] = useState<"principais" | "avancado">("principais");
+  const [activeTab, setActiveTab] = useState<"principais" | "avancado" | "backup">("principais");
   const [values, setValues] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
@@ -108,31 +109,43 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
             </button>
           </header>
 
-          {/* Tab switcher: Principais vs Avançado */}
-          <div className="flex border-b border-line bg-surface2/50 px-4 sm:px-6 pt-2">
+          {/* Tab switcher: Principais vs Avançado vs Backup */}
+          <div className="flex border-b border-line bg-surface2/50 px-4 sm:px-6 pt-2 overflow-x-auto">
             <button
               type="button"
               onClick={() => setActiveTab("principais")}
               className={cn(
-                "flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-semibold transition-all",
+                "flex items-center gap-2 border-b-2 px-3 sm:px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-all",
                 activeTab === "principais"
                   ? "border-accent text-accent-deep bg-surface rounded-t-lg shadow-sm"
                   : "border-transparent text-ink-soft hover:text-ink",
               )}
             >
-              Configurações Principais
+              Configurações
             </button>
             <button
               type="button"
               onClick={() => setActiveTab("avancado")}
               className={cn(
-                "flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-semibold transition-all",
+                "flex items-center gap-2 border-b-2 px-3 sm:px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-all",
                 activeTab === "avancado"
                   ? "border-accent text-accent-deep bg-surface rounded-t-lg shadow-sm"
                   : "border-transparent text-ink-soft hover:text-ink",
               )}
             >
-              Avançado (Sistema & Limites)
+              Avançado
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("backup")}
+              className={cn(
+                "flex items-center gap-2 border-b-2 px-3 sm:px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-all",
+                activeTab === "backup"
+                  ? "border-accent text-accent-deep bg-surface rounded-t-lg shadow-sm"
+                  : "border-transparent text-ink-soft hover:text-ink",
+              )}
+            >
+              Exportações & Backups
             </button>
           </div>
 
@@ -195,10 +208,18 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
             )}
 
             {!isLoading && activeTab === "avancado" && (
-              <AdvancedConfigCard
-                values={values}
-                onChange={setValue}
-              />
+              <div className="animate-fade-in">
+                <AdvancedConfigCard
+                  values={values}
+                  onChange={setValue}
+                />
+              </div>
+            )}
+
+            {!isLoading && activeTab === "backup" && (
+              <div className="animate-fade-in">
+                <BackupRestoreCard />
+              </div>
             )}
           </div>
 
