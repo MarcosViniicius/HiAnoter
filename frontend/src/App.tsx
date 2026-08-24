@@ -294,7 +294,7 @@ function AppContent() {
             {!selectedId && (
               <div className="hidden sm:flex items-center gap-2 pl-1">
                 <span className="font-serif text-lg font-bold tracking-tight text-ink">
-                  HiaNoter
+                  HiAnoter
                 </span>
                 <span className="rounded border border-line bg-subtle px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase text-ink-soft">
                   Lite
@@ -430,7 +430,7 @@ function Welcome({
       <div className="rounded-2xl sm:rounded-3xl border border-line bg-surface p-4 sm:p-7 md:p-8 shadow-soft space-y-5">
         <EmptyState
           icon={<Mic2 className="h-6 w-6 sm:h-7 sm:w-7 text-accent" />}
-          title="Bem-vindo ao HiaNoter"
+          title="Bem-vindo ao HiAnoter"
           description="Grave sua aula ou reunião ao vivo pelo microfone, importe áudios ou crie estudos por documentos/PDFs. A IA sintetiza resumos estruturados e mapas mentais com suporte offline e em rede."
         />
 
@@ -682,7 +682,7 @@ function Welcome({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-line bg-surface p-5 shadow-soft space-y-3">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
-            Como funciona o HiaNoter
+            Como funciona o HiAnoter
           </h3>
           <ol className="space-y-2.5">
             <li className="flex items-start gap-2.5 text-xs text-ink-soft">

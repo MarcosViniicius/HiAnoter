@@ -1,4 +1,4 @@
-# 🎙️ HiaNoter-Lite
+# 🎙️ HiAnoter-Lite
 
 > **Plataforma Open-Source Self-Hosted para Gravação de Áudio ao Vivo, Transcrição Local/Nuvem (Whisper), Resumos Científicos Multimodais, Mapas Mentais Radiais Interativos e Chat com IA Contextual.**
 
@@ -9,13 +9,13 @@
 [![Whisper](https://img.shields.io/badge/Whisper-Faster--Whisper%20%7C%20OpenRouter-orange.svg)](https://github.com/SYSTRAN/faster-whisper)
 [![Theme: Dark & Light](https://img.shields.io/badge/Theme-Dark%20%26%20Light-purple.svg)](#-modo-escuro-e-aparência)
 
-O **HiaNoter** é uma ferramenta pessoal, 100% gratuita e de código aberto voltada para estudantes, pesquisadores e profissionais que precisam transformar aulas, reuniões, conferências e anotações de áudio/documentos em conhecimento estruturado, mapas conceituais e anotações acionáveis.
+O **HiAnoter** é uma ferramenta pessoal, 100% gratuita e de código aberto voltada para estudantes, pesquisadores e profissionais que precisam transformar aulas, reuniões, conferências e anotações de áudio/documentos em conhecimento estruturado, mapas conceituais e anotações acionáveis.
 
 ---
 
 ## ⚡ Como Iniciar a Aplicação
 
-Você pode iniciar o **HiaNoter** de duas formas: através dos **comandos rápidos / executáveis** (que instalam e configuram tudo automaticamente) ou através dos **comandos manuais de Python e Node.js**.
+Você pode iniciar o **HiAnoter** de duas formas: através dos **comandos rápidos / executáveis** (que instalam e configuram tudo automaticamente) ou através dos **comandos manuais de Python e Node.js**.
 
 ---
 
@@ -137,9 +137,9 @@ Em uma nova janela de terminal:
 
 ## 📱 Acesso em Rede Local (Outros Computadores, Celulares e Tablets)
 
-O HiaNoter é configurado nativamente com suporte a **`0.0.0.0`**, permitindo que você use o microfone do celular ou visualize resumos de qualquer dispositivo conectado na mesma rede Wi-Fi.
+O HiAnoter é configurado nativamente com suporte a **`0.0.0.0`**, permitindo que você use o microfone do celular ou visualize resumos de qualquer dispositivo conectado na mesma rede Wi-Fi.
 
-1. Inicie o HiaNoter no seu computador principal (`run.bat`, `.\run.ps1` ou `npm run dev`).
+1. Inicie o HiAnoter no seu computador principal (`run.bat`, `.\run.ps1` ou `npm run dev`).
 2. O terminal exibirá os endereços de rede detectados, por exemplo:
    ```text
    ➜ Local:   http://localhost:8000
@@ -152,7 +152,7 @@ O HiaNoter é configurado nativamente com suporte a **`0.0.0.0`**, permitindo qu
 
 ## 🌙 Modo Escuro, Modo Claro e Personalização
 
-O HiaNoter possui sistema de temas nativo com suporte a:
+O HiAnoter possui sistema de temas nativo com suporte a:
 - ☀️ **Modo Claro (Paper Warm)**: Tons aquecidos inspirados em papel e livros.
 - 🌙 **Modo Escuro (OLED Dark)**: Tons profundos de alto contraste e baixo cansaço visual.
 - 💻 **Modo Sistema**: Sincroniza automaticamente com o tema do seu sistema operacional.
@@ -161,7 +161,7 @@ O HiaNoter possui sistema de temas nativo com suporte a:
 
 ---
 
-## ✨ Principais Recursos do HiaNoter
+## ✨ Principais Recursos do HiAnoter
 
 - 🎙️ **Transcrição Híbrida & Flexível**:
   - **Local (100% Offline & Privada)**: Motor `faster-whisper` com detecção automática de GPU NVIDIA (CUDA `float16`), aceleração CPU (`int8`) ou whisper.cpp.

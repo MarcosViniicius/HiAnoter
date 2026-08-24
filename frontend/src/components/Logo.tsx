@@ -22,7 +22,7 @@ export function Logomark({ className }: { className?: string }) {
 export function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cn("inline-flex items-baseline gap-1.5", className)}>
-      <span className="font-serif text-lg font-semibold tracking-tight">HiaNoter</span>
+      <span className="font-serif text-lg font-semibold tracking-tight">HiAnoter</span>
       <span className="rounded border border-current/20 px-1 py-px text-[9px] font-semibold uppercase tracking-[0.14em] text-inherit/70">
         Lite
       </span>

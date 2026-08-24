@@ -1,5 +1,5 @@
 # =====================================================================
-# HiaNoter-Lite · UM comando. Tudo pronto.
+# HiAnoter-Lite · UM comando. Tudo pronto.
 #   .\run.ps1            -> instala o que faltar (venv, deps, frontend,
 #                           ffmpeg, chave do .env) e abre em :8000
 #   .\run.ps1 -Dev       -> backend :8000 + Vite :5173 (hot reload)

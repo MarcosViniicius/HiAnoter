@@ -1,4 +1,4 @@
-# Setup nativo do HiaNoter-Lite (Windows)
+# Setup nativo do HiAnoter-Lite (Windows)
 # Checa dependencias, cria venv, instala backend + frontend e prepara backend/.env
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -14,7 +14,7 @@ function Check-Tool {
 }
 
 Write-Host ""
-Write-Host "== HiaNoter-Lite :: setup (execucao nativa) ==" -ForegroundColor Cyan
+Write-Host "== HiAnoter-Lite :: setup (execucao nativa) ==" -ForegroundColor Cyan
 
 # --- Python 3.11+ -------------------------------------------------------
 if (-not (Check-Tool "python" "python --version" "Instale o Python 3.11+ de python.org (marque 'Add to PATH').")) {

@@ -115,7 +115,7 @@ export function Sidebar({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-serif text-[17px] font-semibold tracking-tight text-night-text">
-                HiaNoter
+                HiAnoter
               </span>
               <span className="rounded border border-night-line px-1 py-px text-[9px] font-semibold uppercase tracking-[0.14em] text-night-muted">
                 Lite

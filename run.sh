@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =====================================================================
-# HiaNoter-Lite · UM comando. Tudo pronto.
+# HiAnoter-Lite · UM comando. Tudo pronto.
 #   ./run.sh            -> instala o que faltar e abre em :8000
 #   ./run.sh dev        -> backend :8000 + Vite :5173 (hot reload)
 #   ./run.sh gpu        -> compila whisper.cpp p/ GPU (Vulkan) na 1ª vez

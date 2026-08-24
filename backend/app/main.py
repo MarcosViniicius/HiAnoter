@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
     )
 
     await queue.start()
-    logger.info("[startup] HiaNoter-Lite v%s pronto em 0.0.0.0:8000 (acessível na rede local)", __version__)
+    logger.info("[startup] HiAnoter-Lite v%s pronto em 0.0.0.0:8000 (acessível na rede local)", __version__)
     try:
         yield
     finally:
@@ -53,11 +53,11 @@ async def lifespan(app: FastAPI):
             queue.cancel_worker_now()
         except asyncio.TimeoutError:
             queue.cancel_worker_now()
-        logger.info("[shutdown] HiaNoter-Lite encerrado")
+        logger.info("[shutdown] HiAnoter-Lite encerrado")
 
 
 app = FastAPI(
-    title="HiaNoter-Lite",
+    title="HiAnoter-Lite",
     version=__version__,
     description="Transcrição local (faster-whisper) + resumo via OpenRouter + export para Notion.",
     lifespan=lifespan,
