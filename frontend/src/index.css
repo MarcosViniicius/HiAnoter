@@ -1,0 +1,272 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --bg-paper: 245 242 237;
+  --bg-surface: 255 255 255;
+  --bg-surface2: 251 249 245;
+  --bg-subtle: 237 233 224;
+  --border-line: 229 224 212;
+  --border-line2: 238 234 223;
+  --text-ink: 29 26 21;
+  --text-ink-soft: 90 84 74;
+  --text-ink-faint: 141 134 119;
+  --text-ink-faint2: 179 172 156;
+  --accent-soft: 225 242 238;
+  --accent-line: 187 228 219;
+}
+
+.dark, [data-theme="dark"] {
+  color-scheme: dark;
+  --bg-paper: 20 18 14;
+  --bg-surface: 28 25 20;
+  --bg-surface2: 36 32 26;
+  --bg-subtle: 45 40 32;
+  --border-line: 56 50 40;
+  --border-line2: 67 60 49;
+  --text-ink: 242 239 232;
+  --text-ink-soft: 184 176 162;
+  --text-ink-faint: 138 130 117;
+  --text-ink-faint2: 99 92 80;
+  --accent-soft: 20 53 47;
+  --accent-line: 30 79 70;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  min-height: 100dvh;
+}
+
+::selection {
+  @apply bg-accent/20 text-ink;
+}
+
+/* ---------------------------------------------------------------- base */
+@layer base {
+  body {
+    @apply bg-paper font-sans text-ink antialiased transition-colors duration-200;
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent/70 ring-offset-2 ring-offset-paper;
+  }
+
+  select,
+  select option,
+  select optgroup {
+    color-scheme: light !important;
+    background-color: #ffffff !important;
+    color: #1d1a15 !important;
+    font-family: inherit;
+  }
+
+  .dark select,
+  .dark select option,
+  .dark select optgroup,
+  [data-theme="dark"] select,
+  [data-theme="dark"] select option,
+  [data-theme="dark"] select optgroup {
+    color-scheme: dark !important;
+    background-color: #1c1914 !important;
+    color: #f2efe8 !important;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+  }
+}
+
+/* ------------------------------------------------------- scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-ink/15;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-ink/25;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(29 26 21 / 0.2) transparent;
+}
+
+/* ------------------------------------------------------- grain overlay */
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: theme("zIndex.grain");
+  pointer-events: none;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ------------------------------------------------- skip link */
+.skip-link {
+  @apply absolute left-4 top-4 z-[70] -translate-y-16 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-paper transition-transform;
+}
+.skip-link:focus-visible {
+  @apply translate-y-0;
+}
+
+/* ----------------------------------------------- editorial markdown */
+@layer components {
+  .md-body {
+    @apply text-[15px] leading-[1.85] text-ink;
+  }
+  .md-body > * + * {
+    margin-top: 1.05em;
+  }
+  .md-body h1 {
+    @apply mb-5 font-serif text-[27px] font-medium leading-snug tracking-[-0.01em] text-ink;
+  }
+  .md-body h2 {
+    @apply mb-3 mt-9 border-l-[3px] border-accent pl-4 font-serif text-xl font-semibold tracking-[-0.01em] text-ink;
+  }
+  .md-body h3 {
+    @apply mb-2 mt-6 text-[15px] font-semibold text-ink;
+  }
+  .md-body p {
+    @apply leading-[1.85] text-ink;
+  }
+  .md-body ul {
+    @apply my-1 list-disc pl-6 space-y-1 marker:text-accent;
+  }
+  .md-body ol {
+    @apply my-1 list-decimal pl-6 space-y-1;
+  }
+  .md-body strong {
+    @apply font-semibold text-ink;
+  }
+  .md-body a {
+    @apply font-medium text-accent underline decoration-accent/40 underline-offset-2 hover:decoration-accent;
+  }
+  .md-body blockquote {
+    @apply border-l-2 border-line pl-4 text-ink-soft italic;
+  }
+  .md-body code {
+    @apply rounded-md px-1.5 py-0.5 font-mono text-[13px] text-ink bg-subtle;
+  }
+  .md-body pre {
+    @apply overflow-x-auto rounded-lg bg-night px-4 py-3.5 text-[13px] leading-relaxed text-night-text shadow-soft;
+  }
+  .md-body pre code {
+    @apply bg-transparent p-0 text-night-text;
+  }
+  .md-body table {
+    @apply block w-full overflow-x-auto border-collapse text-sm;
+    -webkit-overflow-scrolling: touch;
+  }
+  .md-body th,
+  .md-body td {
+    @apply border border-line px-3 py-2 text-left whitespace-nowrap sm:whitespace-normal;
+  }
+  .md-body th {
+    @apply bg-subtle font-semibold;
+  }
+  .md-body hr {
+    @apply my-6 border-line;
+  }
+}
+
+/* ------------------------------------------------ utilities & touch */
+@layer utilities {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 16px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .touch-tap {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* ------------------------------------------------ LaTeX / KaTeX styling */
+.katex-display {
+  margin: 1.25em 0 !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5em 0;
+}
+
+.katex {
+  font-size: 1.08em;
+  text-rendering: auto;
+}
+
+/* ------------------------------------------------ Print / PDF Styles */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+  }
+
+  /* Hide navigation, sidebar, chat, and interactive buttons during print */
+  aside,
+  header button,
+  .no-print,
+  [role="dialog"],
+  .sticky,
+  button {
+    display: none !important;
+  }
+
+  /* Expand main document to clean full page */
+  main,
+  section {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: transparent !important;
+  }
+
+  .summary-markdown-content {
+    color: #111111 !important;
+    line-height: 1.65 !important;
+  }
+
+  .katex {
+    color: #000000 !important;
+  }
+}
+
+/* ------------------------------------------------ reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.02ms !important;
+    scroll-behavior: auto !important;
+  }
+}
