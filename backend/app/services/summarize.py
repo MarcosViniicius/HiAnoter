@@ -831,7 +831,7 @@ async def chat_with_recording_context(
     context_docs: list[dict] | None = None,
     action_items: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Conversa interativa com a IA tendo todo o contexto da gravação."""
+    """Conversa interativa ágil com a IA usando um Guia de Conteúdo sintetizado da gravação."""
     s = get_settings()
     cfg = s.get_effective_llm_config()
     provider = cfg["provider"]
@@ -844,39 +844,59 @@ async def chat_with_recording_context(
             f"Chave de API para o provedor '{provider}' não configurada (ou placeholder). Configure em Configurações (menu) ou em backend/.env."
         )
 
-    context_block = format_context_documents(context_docs)
-    actions_text = "\n".join(f"- {a}" for a in (action_items or [])) if action_items else "Nenhuma tarefa listada."
-    summary_text = (summary_markdown or "").strip() or "Nenhum resumo gerado ainda."
-    transcript_snippet = (raw_transcript or "").strip()[:14000]
+    # Constrói um Guia de Conteúdo enxuto e de alta velocidade para o assistente responder rápido
+    content_guide_parts: list[str] = [f"- **Título da Sessão**: {title}"]
 
-    system_instruction = f"""Você é o Tutor e Assistente de IA Especialista dedicado exclusivamente a esta gravação: "{title}".
-Você tem acesso ao resumo analítico, materiais e documentos de apoio e à transcrição do áudio ministrado.
+    if summary_markdown and summary_markdown.strip():
+        summary_clean = summary_markdown.strip()
+        # Capa o resumo para ~4500 caracteres para evitar payloads pesados e acelerar a resposta do LLM
+        if len(summary_clean) > 4500:
+            summary_clean = summary_clean[:4500] + "\n\n... [conteúdo condensado para resposta instantânea]"
+        content_guide_parts.append(f"#### RESUMO SINTETIZADO DA GRAVAÇÃO:\n{summary_clean}")
+    elif raw_transcript and raw_transcript.strip():
+        # Apenas se não houver resumo, envia um trecho conciso da transcrição
+        transcript_snippet = raw_transcript.strip()[:3000]
+        content_guide_parts.append(f"#### TRANSCRIÇÃO ESSENCIAL:\n{transcript_snippet}")
+    else:
+        content_guide_parts.append("#### CONTEÚDO:\nNenhum resumo ou áudio processado ainda.")
 
-SEUS OBJETIVOS E DIRETRIZES:
-1. Responda a dúvidas dos usuários com clareza, rigor conceitual e didática.
-2. Aprofunde tópicos específicos, explique termos difíceis, deduza passos de fórmulas ou crie analogias simples.
-3. Se solicitado, crie perguntas de fixação / simulado estilo teste ou flashcard sobre o assunto tratado.
-4. Mantenha fidelidade factual ao conteúdo da gravação e aos anexos fornecidos.
-5. Responda em português do Brasil, usando Markdown bem estruturado (listas, negrito, blocos de código).
+    if action_items:
+        items_snippet = "\n".join(f"- {a}" for a in action_items[:8])
+        content_guide_parts.append(f"#### TAREFAS E ENCAMINHAMENTOS:\n{items_snippet}")
+
+    if context_docs:
+        docs_summary = []
+        for d in context_docs[:8]:
+            fname = d.get("filename") or "Documento"
+            dtype = d.get("doc_type") or "anexo"
+            text_prev = (d.get("content_text") or "").strip()
+            prev_snippet = (text_prev[:250] + "...") if len(text_prev) > 250 else text_prev
+            if prev_snippet:
+                docs_summary.append(f"- **{fname}** ({dtype}): {prev_snippet}")
+        if docs_summary:
+            content_guide_parts.append("#### DOCUMENTOS E MATERIAIS ANEXOS (REFERÊNCIA):\n" + "\n".join(docs_summary))
+
+    content_guide = "\n\n".join(content_guide_parts)
+
+    system_instruction = f"""Você é o Tutor e Assistente Especialista da gravação: "{title}".
+Você tem acesso ao Guia de Conteúdo sintetizado abaixo (resumo analítico, conceitos-chave, fórmulas e materiais de apoio).
+
+DIRETRIZES DE ATENDIMENTO:
+1. Responda de forma ÁGIL, DIRETA, CONCISA e DIDÁTICA.
+2. Foque exatamente no que o usuário perguntou, sem rodeios ou repetições desnecessárias.
+3. Se o usuário pedir explicação de termos, use analogias claras e deduza passos matemáticos com rigor usando Markdown e LaTeX ($ e $$).
+4. Se o usuário pedir teste/simulado, crie perguntas objetivas com respostas explicadas.
+5. Responda em português do Brasil.
 
 ---
-### CONTEXTO DA GRAVAÇÃO:
-- **Título**: {title}
-
-#### RESUMO DA GRAVAÇÃO:
-{summary_text}
-
-#### ITENS DE AÇÃO E DELIBERAÇÕES:
-{actions_text}
-
-{context_block}
-
-#### TRECHO DA TRANSCRIÇÃO ORIGINAL:
-{transcript_snippet}
+### GUIA DE CONTEÚDO DA SESSÃO:
+{content_guide}
 ---"""
 
     llm_messages = [{"role": "system", "content": system_instruction}]
-    for m in messages:
+    # Limita o histórico das últimas 8 mensagens para manter o chat ultrarrápido
+    recent_messages = messages[-8:] if len(messages) > 8 else messages
+    for m in recent_messages:
         role = m.get("role", "user")
         if role in ("user", "assistant"):
             llm_messages.append({"role": role, "content": m.get("content", "")})
@@ -887,19 +907,19 @@ SEUS OBJETIVOS E DIRETRIZES:
         "Content-Type": "application/json",
     }
     if provider == "openrouter":
-        headers["HTTP-Referer"] = "https://github.com/hinoter/hinoter-lite"
-        headers["X-Title"] = "HiNoter-Lite"
+        headers["HTTP-Referer"] = "https://github.com/MarcosViniicius/HiAnoter"
+        headers["X-Title"] = "HiAnoter-Lite"
 
     payload = {
         "model": model_name,
         "messages": llm_messages,
         "temperature": 0.3,
-        "max_tokens": 3000,
+        "max_tokens": 2000,
         "stream": False,
     }
 
     try:
-        async with httpx.AsyncClient(timeout=120) as client:
+        async with httpx.AsyncClient(timeout=45) as client:
             resp = await client.post(url, json=payload, headers=headers)
             resp.raise_for_status()
             data = resp.json()

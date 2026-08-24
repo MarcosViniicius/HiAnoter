@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Bot,
   Send,
@@ -96,8 +97,8 @@ export function RecordingChatDrawer({
 
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-6 animate-fade-in">
+  return createPortal(
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-md p-3 sm:p-6 animate-fade-in">
       <div className="relative flex flex-col h-[88vh] max-h-[820px] w-full max-w-2xl rounded-3xl border border-line bg-paper shadow-2xl overflow-hidden animate-scale-up">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-surface/80 shrink-0">
@@ -270,6 +271,7 @@ export function RecordingChatDrawer({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
