@@ -263,12 +263,30 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
     setCustomOffsets({});
   };
 
-  // Pointer Down on background
+  // Pointer Down on canvas background or nodes
   const handleContainerPointerDown = (e: React.PointerEvent) => {
     const target = e.target as Element;
-    if (target.closest("[data-node-id]")) {
+    if (target.closest("[data-collapse-btn]")) {
       return;
     }
+
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
+
+    const nodeEl = target.closest("[data-node-id]");
+    if (nodeEl) {
+      const nodeId = nodeEl.getAttribute("data-node-id");
+      if (nodeId) {
+        draggingNodeIdRef.current = nodeId;
+        dragStartRef.current = {
+          mouseX: e.clientX,
+          mouseY: e.clientY,
+          initialOffset: customOffsets[nodeId] || { x: 0, y: 0 },
+        };
+      }
+    }
+
     isPanningRef.current = true;
     setIsPanningState(true);
     startPanPosRef.current = {
@@ -279,15 +297,45 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
     };
   };
 
-  // Pointer Down on node
-  const handleNodePointerDown = (e: React.PointerEvent, nodeId: string) => {
-    e.stopPropagation();
-    draggingNodeIdRef.current = nodeId;
-    dragStartRef.current = {
-      mouseX: e.clientX,
-      mouseY: e.clientY,
-      initialOffset: customOffsets[nodeId] || { x: 0, y: 0 },
-    };
+  const handleContainerPointerMove = (e: React.PointerEvent) => {
+    if (!isPanningRef.current) return;
+
+    if (draggingNodeIdRef.current) {
+      const currentZoom = zoomRef.current;
+      const dx = (e.clientX - dragStartRef.current.mouseX) / currentZoom;
+      const dy = (e.clientY - dragStartRef.current.mouseY) / currentZoom;
+      const nodeId = draggingNodeIdRef.current;
+
+      setCustomOffsets((prev) => ({
+        ...prev,
+        [nodeId]: {
+          x: dragStartRef.current.initialOffset.x + dx,
+          y: dragStartRef.current.initialOffset.y + dy,
+        },
+      }));
+    } else {
+      const dx = e.clientX - startPanPosRef.current.mouseX;
+      const dy = e.clientY - startPanPosRef.current.mouseY;
+      const newPan = {
+        x: startPanPosRef.current.panX + dx,
+        y: startPanPosRef.current.panY + dy,
+      };
+      panRef.current = newPan;
+      setPan(newPan);
+    }
+  };
+
+  const handleContainerPointerUp = (e: React.PointerEvent) => {
+    if (isPanningRef.current) {
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {}
+      isPanningRef.current = false;
+      setIsPanningState(false);
+    }
+    if (draggingNodeIdRef.current) {
+      draggingNodeIdRef.current = null;
+    }
   };
 
   // Toggle Collapse
@@ -420,7 +468,10 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
       <div
         ref={containerRef}
         onPointerDown={handleContainerPointerDown}
-        className={`w-full h-full min-h-[460px] sm:min-h-[580px] overflow-hidden touch-none ${
+        onPointerMove={handleContainerPointerMove}
+        onPointerUp={handleContainerPointerUp}
+        onPointerCancel={handleContainerPointerUp}
+        className={`w-full h-full min-h-[480px] sm:min-h-[620px] overflow-hidden touch-none select-none ${
           isPanningState ? "cursor-grabbing" : "cursor-grab"
         }`}
       >
@@ -522,7 +573,6 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
                     key={pos.id}
                     data-node-id={pos.id}
                     transform={`translate(${pos.x}, ${pos.y})`}
-                    onPointerDown={(e) => handleNodePointerDown(e, pos.id)}
                     className="cursor-grab active:cursor-grabbing select-none"
                   >
                     {/* Root Bubble */}
@@ -586,7 +636,6 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
                     key={pos.id}
                     data-node-id={pos.id}
                     transform={`translate(${pos.x}, ${pos.y})`}
-                    onPointerDown={(e) => handleNodePointerDown(e, pos.id)}
                     className="cursor-grab active:cursor-grabbing select-none group"
                   >
                     <rect
@@ -658,6 +707,7 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
                     {/* Collapse / Expand */}
                     {hasChildren && (
                       <g
+                        data-collapse-btn="true"
                         transform="translate(112, 0)"
                         onClick={(e) => toggleCollapse(e, pos.id)}
                         className="cursor-pointer"
@@ -692,7 +742,6 @@ export const RadialMindmapCanvas = memo(function RadialMindmapCanvas({
                   key={pos.id}
                   data-node-id={pos.id}
                   transform={`translate(${pos.x}, ${pos.y})`}
-                  onPointerDown={(e) => handleNodePointerDown(e, pos.id)}
                   className="cursor-grab active:cursor-grabbing select-none"
                 >
                   <rect

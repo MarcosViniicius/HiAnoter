@@ -43,8 +43,8 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
   const isPanningRef = useRef(false);
   const startPanPosRef = useRef({ mouseX: 0, mouseY: 0, panX: 0, panY: 0 });
 
-  const CANVAS_WIDTH = 2200;
-  const CANVAS_HEIGHT = 1600;
+  const CANVAS_WIDTH = 2400;
+  const CANVAS_HEIGHT = 1800;
   const HALF_W = CANVAS_WIDTH / 2;
   const HALF_H = CANVAS_HEIGHT / 2;
 
@@ -88,47 +88,54 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
     };
   }, []);
 
-  // Global window pointer listeners
-  useEffect(() => {
-    const handleGlobalPointerMove = (e: PointerEvent) => {
-      if (isPanningRef.current) {
-        const dx = e.clientX - startPanPosRef.current.mouseX;
-        const dy = e.clientY - startPanPosRef.current.mouseY;
-        const newPan = {
-          x: startPanPosRef.current.panX + dx,
-          y: startPanPosRef.current.panY + dy,
-        };
-        panRef.current = newPan;
-        setPan(newPan);
-      }
+  // Pointer Drag Handlers with PointerCapture
+  const handlePointerDown = (e: React.PointerEvent) => {
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
+    isPanningRef.current = true;
+    setIsPanningState(true);
+    startPanPosRef.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      panX: panRef.current.x,
+      panY: panRef.current.y,
     };
+  };
 
-    const handleGlobalPointerUp = () => {
-      if (isPanningRef.current) {
-        isPanningRef.current = false;
-        setIsPanningState(false);
-      }
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isPanningRef.current) return;
+    const dx = e.clientX - startPanPosRef.current.mouseX;
+    const dy = e.clientY - startPanPosRef.current.mouseY;
+    const newPan = {
+      x: startPanPosRef.current.panX + dx,
+      y: startPanPosRef.current.panY + dy,
     };
+    panRef.current = newPan;
+    setPan(newPan);
+  };
 
-    window.addEventListener("pointermove", handleGlobalPointerMove, { passive: true });
-    window.addEventListener("pointerup", handleGlobalPointerUp);
-    window.addEventListener("pointercancel", handleGlobalPointerUp);
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (isPanningRef.current) {
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {}
+      isPanningRef.current = false;
+      setIsPanningState(false);
+    }
+  };
 
-    return () => {
-      window.removeEventListener("pointermove", handleGlobalPointerMove);
-      window.removeEventListener("pointerup", handleGlobalPointerUp);
-      window.removeEventListener("pointercancel", handleGlobalPointerUp);
-    };
-  }, []);
-
-  // Compute Tree Layout (Left-to-Right centered around 0, 0)
+  // Dynamic tree layout that calculates true bounding height for each branch
   const layout = useMemo(() => {
     if (!data) return { nodes: [], connections: [] };
 
     const nodes: any[] = [];
     const connections: any[] = [];
 
-    const rootX = -450;
+    const mainBranches = data.subbranches || [];
+    const totalMain = mainBranches.length;
+
+    const rootX = -500;
     const rootY = 0;
 
     nodes.push({
@@ -140,17 +147,28 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
       level: 0,
     });
 
-    const mainBranches = data.subbranches || [];
-    const totalMain = mainBranches.length;
     if (totalMain === 0) return { nodes, connections };
 
-    const branchSpacingY = 160;
-    const totalBranchHeight = (totalMain - 1) * branchSpacingY;
-    const startY = rootY - totalBranchHeight / 2;
+    const SUB_NODE_HEIGHT = 44;
+    const SUB_SPACING_Y = 56;
+    const MIN_BRANCH_GAP = 28;
+
+    // Calculate vertical height required for each branch based on its leaf nodes
+    const branchHeights = mainBranches.map((branch) => {
+      const subs = branch.subbranches || [];
+      if (subs.length === 0) return 90;
+      return Math.max(90, (subs.length - 1) * SUB_SPACING_Y + SUB_NODE_HEIGHT + 24);
+    });
+
+    const totalHeight = branchHeights.reduce((acc, h) => acc + h + MIN_BRANCH_GAP, -MIN_BRANCH_GAP);
+    let currentY = rootY - totalHeight / 2;
 
     mainBranches.forEach((branch, bIdx) => {
-      const branchX = rootX + 350;
-      const branchY = startY + bIdx * branchSpacingY;
+      const bHeight = branchHeights[bIdx];
+      const branchY = currentY + bHeight / 2;
+      currentY += bHeight + MIN_BRANCH_GAP;
+
+      const branchX = rootX + 370;
       const branchColor = branch.color || DEFAULT_COLORS[bIdx % DEFAULT_COLORS.length];
       const branchId = `branch-${bIdx}`;
 
@@ -173,13 +191,12 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
 
       const subs = branch.subbranches || [];
       if (subs.length > 0) {
-        const subSpacingY = 56;
-        const totalSubHeight = (subs.length - 1) * subSpacingY;
-        const subStartY = branchY - totalSubHeight / 2;
+        const subTotalH = (subs.length - 1) * SUB_SPACING_Y;
+        const subStartY = branchY - subTotalH / 2;
 
         subs.forEach((sub, sIdx) => {
-          const subX = branchX + 310;
-          const subY = subStartY + sIdx * subSpacingY;
+          const subX = branchX + 330;
+          const subY = subStartY + sIdx * SUB_SPACING_Y;
           const subId = `sub-${bIdx}-${sIdx}`;
 
           nodes.push({
@@ -193,7 +210,7 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
 
           connections.push({
             from: { x: branchX + 115, y: branchY },
-            to: { x: subX - 85, y: subY },
+            to: { x: subX - 90, y: subY },
             color: sub.color || branchColor,
             level: 2,
           });
@@ -217,17 +234,6 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
     zoomRef.current = 1;
     setPan({ x: 0, y: 0 });
     panRef.current = { x: 0, y: 0 };
-  };
-
-  const handleContainerPointerDown = (e: React.PointerEvent) => {
-    isPanningRef.current = true;
-    setIsPanningState(true);
-    startPanPosRef.current = {
-      mouseX: e.clientX,
-      mouseY: e.clientY,
-      panX: panRef.current.x,
-      panY: panRef.current.y,
-    };
   };
 
   const handleExportPNG = () => {
@@ -268,7 +274,7 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
   };
 
   return (
-    <div className="relative flex flex-col w-full h-full min-h-[460px] sm:min-h-[580px] max-h-[820px] rounded-2xl sm:rounded-3xl border border-line bg-paper overflow-hidden select-none shadow-soft">
+    <div className="relative flex flex-col w-full h-full min-h-[480px] sm:min-h-[620px] max-h-[820px] rounded-2xl sm:rounded-3xl border border-line bg-paper overflow-hidden select-none shadow-soft">
       {/* Controls */}
       <div className="absolute top-2.5 left-2.5 sm:top-4 sm:left-4 z-20 flex items-center gap-1.5 sm:gap-2 rounded-xl sm:rounded-2xl border border-line/80 bg-surface/95 backdrop-blur-md p-1 sm:p-1.5 shadow-raise">
         <div className="flex items-center gap-0.5 sm:gap-1 font-mono text-xs text-ink-soft">
@@ -321,10 +327,14 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
         <span className="xs:hidden">Arraste para mover</span>
       </div>
 
+      {/* Interactive Drag Canvas */}
       <div
         ref={containerRef}
-        onPointerDown={handleContainerPointerDown}
-        className={`w-full h-full min-h-[460px] sm:min-h-[580px] overflow-hidden touch-none ${
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        className={`w-full h-full min-h-[480px] sm:min-h-[620px] overflow-hidden touch-none select-none ${
           isPanningState ? "cursor-grabbing" : "cursor-grab"
         }`}
       >
@@ -338,7 +348,7 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
             transformOrigin: "center center",
             willChange: "transform",
           }}
-          className="overflow-visible w-full h-full"
+          className="overflow-visible w-full h-full pointer-events-none"
         >
           {/* Connections */}
           <g>
@@ -351,8 +361,8 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
                   d={pathData}
                   fill="none"
                   stroke={c.color}
-                  strokeWidth={c.level === 1 ? 3 : 1.8}
-                  strokeOpacity={0.75}
+                  strokeWidth={c.level === 1 ? 3.2 : 2}
+                  strokeOpacity={0.8}
                   strokeLinecap="round"
                 />
               );
@@ -382,6 +392,7 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
                       fill="#5eead4"
                       fontSize="13"
                       fontWeight="bold"
+                      className="pointer-events-none"
                     >
                       {icon} MAPA MENTAL
                     </text>
@@ -393,6 +404,7 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
                       fontSize="14"
                       fontWeight="800"
                       fontFamily="serif"
+                      className="pointer-events-none"
                     >
                       {n.node.name.length > 24 ? n.node.name.slice(0, 22) + "…" : n.node.name}
                     </text>
@@ -423,6 +435,7 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
                           fill="#ffffff"
                           fontSize="12"
                           fontWeight="900"
+                          className="pointer-events-none"
                         >
                           {n.order}
                         </text>
@@ -436,6 +449,7 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
                       fontSize="13"
                       fontWeight="700"
                       fontFamily="serif"
+                      className="pointer-events-none"
                     >
                       {n.node.name.length > 20 ? n.node.name.slice(0, 18) + "…" : n.node.name}
                     </text>
@@ -446,26 +460,27 @@ export const HorizontalTreeCanvas = memo(function HorizontalTreeCanvas({
               return (
                 <g key={n.id} transform={`translate(${n.x}, ${n.y})`}>
                   <rect
-                    x="-85"
-                    y="-20"
-                    width="170"
-                    height="40"
+                    x="-90"
+                    y="-22"
+                    width="180"
+                    height="44"
                     rx="12"
                     fill="#ffffff"
                     stroke={n.color}
                     strokeWidth="1.8"
                     strokeDasharray="4 2"
                   />
-                  <circle cx="-70" cy="0" r="3.5" fill={n.color} />
+                  <circle cx="-75" cy="0" r="3.5" fill={n.color} />
                   <text
-                    x="-60"
-                    y="4"
+                    x="-64"
+                    y="4.5"
                     textAnchor="start"
                     fill="#1e293b"
                     fontSize="11.5"
                     fontWeight="600"
+                    className="pointer-events-none"
                   >
-                    {n.node.name.length > 18 ? n.node.name.slice(0, 16) + "…" : n.node.name}
+                    {n.node.name.length > 20 ? n.node.name.slice(0, 18) + "…" : n.node.name}
                   </text>
                 </g>
               );
